@@ -1,0 +1,26 @@
+[project]
+name = "bankrange"
+version = "0.1.0"
+description = "AI-Powered Purple Team Cyber Range & Bank Log Simulator"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "confluent-kafka>=2.14.0",
+    "fastapi>=0.135.3",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "streamlit>=1.56.0",
+    "uvicorn>=0.44.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+strict = true
