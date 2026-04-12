@@ -1,0 +1,123 @@
+{
+  "title": "BankRange: Main SOC Console (Totals)",
+  "uid": "bankrange_soc_main",
+  "tags": ["soc", "blue-team", "totals"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "title": "Total Logs Processed (Overall)",
+      "type": "stat",
+      "datasource": "Loki",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({environment=\"simulation\"}[$__range]))",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "title": "Total Errors & Criticals",
+      "type": "stat",
+      "datasource": "Loki",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({environment=\"simulation\", level=~\"error|critical\"}[$__range]))",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "title": "Ingested Volume (Bytes In)",
+      "type": "stat",
+      "datasource": "Loki",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(bytes_over_time({environment=\"simulation\"}[$__range]))",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "decbytes" }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area"
+      }
+    },
+    {
+      "title": "Log Accumulation Over Time (Totals/min)",
+      "type": "timeseries",
+      "datasource": "Loki",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({environment=\"simulation\"}[1m]))",
+          "legendFormat": "Total Logs",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisPlacement": "left",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        }
+      }
+    },
+    {
+      "title": "Events by Operating System (Total Count)",
+      "type": "piechart",
+      "datasource": "Loki",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({environment=\"simulation\"}[$__range])) by (os)",
+          "legendFormat": "{{os}}",
+          "refId": "E"
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "title": "Recent Security Alerts",
+      "type": "logs",
+      "datasource": "Loki",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "{environment=\"simulation\", level=~\"warning|error|critical\"}",
+          "refId": "F"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true
+      }
+    }
+  ]
+}
