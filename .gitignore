@@ -32,3 +32,8 @@ logs/
 data/
 openspec/changes/*/state.yaml
 .atl/
+
+# Node.js
+node_modules/
+package.json
+package-lock.json
