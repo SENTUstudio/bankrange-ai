@@ -2,12 +2,6 @@
   import { engineState } from '$lib/state/engineStore.svelte';
   import AlertBadge from './reusable/AlertBadge.svelte';
 
-  export interface Props {
-    connected?: boolean;
-  }
-
-  let { connected = true }: Props = $props();
-
   const statusConfig: Record<string, { level: 'info' | 'warn' | 'critical'; text: string }> = {
     running: { level: 'info', text: 'RUNNING' },
     stopped: { level: 'critical', text: 'STOPPED' },
@@ -20,7 +14,7 @@
   <div class="flex items-center gap-3">
     <span class="text-[var(--color-primary)] text-xs font-bold uppercase tracking-wider">BankRange</span>
     <AlertBadge level={config.level} text={config.text} />
-    {#if !connected}
+    {#if !engineState.sseConnected}
       <AlertBadge level="critical" text="RECONNECTING..." />
     {/if}
   </div>
@@ -38,6 +32,6 @@
       <span class="text-[var(--color-muted)]">MULT</span>
       <span class="text-[var(--color-text)]">{engineState.multiplier.toFixed(1)}x</span>
     </div>
-    <div class="w-2 h-2 rounded-full" class:bg-[var(--color-success)]={connected} class:bg-[var(--color-alert)]={!connected}></div>
+    <div class="w-2 h-2 rounded-full" class:bg-[var(--color-success)]={engineState.sseConnected} class:bg-[var(--color-alert)]={!engineState.sseConnected}></div>
   </div>
 </div>

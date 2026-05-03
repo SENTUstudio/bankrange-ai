@@ -83,7 +83,7 @@
     aria-label="Tactical map of Argentina"
   >
     <g
-      style="transform: translate({appState.mapTransform.x}px, {appState.mapTransform.y}px) scale({appState.mapTransform.scale}); transition: transform 800ms ease-in-out; transform-origin: center;"
+      style="transform: translate({appState.mapTransform.x}px, {appState.mapTransform.y}px) scale({appState.mapTransform.scale}); transition: transform 400ms ease-in-out; transform-origin: center;"
     >
       <ArgentinaMap />
       <BranchMarkers onSelect={selectBranch} />
