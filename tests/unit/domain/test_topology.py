@@ -183,3 +183,37 @@ class TestTopologyFactory:
                 assert ws1.hostname == ws2.hostname
                 assert ws1.ip_address == ws2.ip_address
                 assert ws1.mac_address == ws2.mac_address
+
+    def test_eight_argentine_cities_cycle(self) -> None:
+        """10 branches cycle deterministically through 8 Argentine cities."""
+        config = TopologyConfig(
+            num_branches=10,
+            workstations_per_branch=5,
+            employees_per_branch=5,
+            os_distribution=OSDistribution(windows_pct=80, linux_pct=20, macos_pct=0),
+            segment_templates=[
+                SegmentTemplate(
+                    name_prefix="teller",
+                    vlan_id=100,
+                    cidr_prefix="10.{branch_idx}.1.0/24",
+                ),
+            ],
+            base_eps=2.0,
+        )
+        factory = TopologyFactory()
+        branches = factory.create(config)
+
+        expected_cities = [
+            "Buenos Aires",
+            "Córdoba",
+            "Rosario",
+            "Mendoza",
+            "Tucumán",
+            "La Plata",
+            "Mar del Plata",
+            "Salta",
+            "Buenos Aires",  # cycle repeats
+            "Córdoba",
+        ]
+        actual_cities = [b.city for b in branches]
+        assert actual_cities == expected_cities
