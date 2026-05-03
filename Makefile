@@ -1,4 +1,4 @@
-.PHONY: help install test up down logs run run-heavy clean
+.PHONY: help install test test-cov lint lint-fix format typecheck quality up down logs run run-api run-ui clean
 
 help: ## Show this help message
 	@echo "======================================================================"
@@ -7,38 +7,54 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install dependencies using uv
-	uv pip install -e .
 	uv sync
 
-test: ## Run strict TDD unit and integration tests
+test: ## Run unit and integration tests
 	uv run pytest tests/ -v
 
-up: ## Start the local Kafka infrastructure (KRaft) and Web UI
-	docker-compose up -d
-	@echo "Waiting for Kafka to be healthy..."
-	@sleep 5
-	@echo "✅ Infrastructure is UP! Kafka UI available at: http://localhost:8080"
+test-cov: ## Run tests with coverage report
+	uv run pytest tests/ -v --cov=adapters --cov=config --cov=core --cov-report=term-missing --cov-report=html
 
-down: ## Stop the local Kafka infrastructure & wipe volumes
+lint: ## Run linter (ruff check)
+	uv run ruff check .
+
+lint-fix: ## Run linter and auto-fix issues
+	uv run ruff check --fix .
+
+format: ## Format code with ruff
+	uv run ruff format .
+
+typecheck: ## Run static type checker (mypy)
+	uv run mypy .
+
+quality: ## Run all quality checks (format, lint, typecheck, test-cov)
+	@echo "🧹 Running formatter..."
+	uv run ruff format .
+	@echo "🔍 Running linter..."
+	uv run ruff check .
+	@echo "📝 Running type checker..."
+	uv run mypy .
+	@echo "🧪 Running tests with coverage..."
+	uv run pytest tests/ -v --cov=adapters --cov=config --cov=core --cov-report=term-missing
+
+up: ## Start the full dockerized stack
+	docker-compose up -d --build
+	@echo "🚀 Stack is UP! API: http://localhost:8000, UI: http://localhost:8501, Kafka UI: http://localhost:8080"
+
+down: ## Stop the stack & wipe volumes
 	docker-compose down -v
 	@echo "🧹 Infrastructure wiped cleanly."
 
 logs: ## Follow the logs of the Docker infrastructure
 	docker-compose logs -f
 
-run-cli: ## (Legacy) Run the static terminal simulation CLI 
-	uv run python -m adapters.inbound.cli.runner
-
-run-api: ## Start the C&C FastAPI Engine Background Loop
+run-api: ## Start the C&C FastAPI Engine Background Loop (local)
 	uv run uvicorn adapters.inbound.api.app:app --host 0.0.0.0 --port 8000
 
-run-ui: ## Start the Streamlit Control Panel Interface
+run-ui: ## Start the Streamlit Control Panel Interface (local)
 	uv run streamlit run adapters/inbound/ui/dashboard.py
 
-topic-create: ## Manually provision the Double-Hop topics
-	docker-compose exec kafka kafka-topics --create --bootstrap-server localhost:9092 --topic bankrange-raw --partitions 3 --replication-factor 1
-	docker-compose exec kafka kafka-topics --create --bootstrap-server localhost:9092 --topic bankrange-clean --partitions 3 --replication-factor 1
-
-clean: ## Remove python cache files
+clean: ## Remove cache files and docker build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
+	docker system prune -f

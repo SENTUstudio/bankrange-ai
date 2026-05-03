@@ -102,6 +102,58 @@
       }
     },
     {
+      "title": "Pipeline Latency (Avg Lag ms)",
+      "type": "gauge",
+      "datasource": "Loki",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "expr": "avg_over_time({environment=\"simulation\"} | json | unwrap pipeline_lag_ms [$__range])",
+          "refId": "G"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "max": 1000,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Pipeline Latency Over Time (P95)",
+      "type": "timeseries",
+      "datasource": "Loki",
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 22 },
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.95, {environment=\"simulation\"} | json | unwrap pipeline_lag_ms [1m])",
+          "legendFormat": "P95 Lag",
+          "refId": "H"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisPlacement": "left",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
       "title": "Recent Security Alerts",
       "type": "logs",
       "datasource": "Loki",

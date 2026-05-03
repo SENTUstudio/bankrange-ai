@@ -60,29 +60,41 @@ class TemporalProfile(BaseModel):
 BANK_WORKDAY_PROFILE = TemporalProfile(
     hourly_multipliers=[
         # 00:00-05:00 — Night: minimal (batch jobs, security scans)
-        0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
         # 06:00-07:00 — Early morning: guards, IT ops arriving
-        0.15, 0.30,
+        0.15,
+        0.30,
         # 08:00-08:59 — Morning ramp-up: employees logging in
         1.50,
         # 09:00-09:59 — Peak activity: full operations
         1.80,
         # 10:00-11:59 — Steady high activity
-        1.60, 1.60,
+        1.60,
+        1.60,
         # 12:00-12:59 — Lunch dip begins
         1.00,
         # 13:00-13:59 — Lunch dip: reduced activity
         0.80,
         # 14:00-16:59 — Afternoon steady
-        1.50, 1.50, 1.40,
+        1.50,
+        1.50,
+        1.40,
         # 17:00-17:59 — End of day: logout wave starts
         1.20,
         # 18:00-18:59 — Logout peak
         0.80,
         # 19:00-20:59 — Evening: stragglers, overtime
-        0.30, 0.20,
+        0.30,
+        0.20,
         # 21:00-23:59 — Night: security systems only
-        0.10, 0.10, 0.10,
+        0.10,
+        0.10,
+        0.10,
     ]
 )
 """Standard banking workday: peaks at 9am, dips at lunch, tapers at 6pm."""
@@ -90,15 +102,30 @@ BANK_WORKDAY_PROFILE = TemporalProfile(
 SERVER_24X7_PROFILE = TemporalProfile(
     hourly_multipliers=[
         # Servers generate steady traffic 24/7 with slight variation
-        0.80, 0.80, 0.90, 0.90, 0.80, 0.80,  # 00-05: batch processing
-        0.90, 1.00,                             # 06-07: morning prep
-        1.20, 1.50,                             # 08-09: peak sync
-        1.30, 1.30,                             # 10-11: steady
-        1.10, 1.00,                             # 12-13: lunch
-        1.30, 1.30, 1.20,                       # 14-16: afternoon
-        1.10, 1.00,                             # 17-18: EOD
-        0.90, 0.90,                             # 19-20: evening
-        0.80, 0.80, 0.80,                       # 21-23: night
+        0.80,
+        0.80,
+        0.90,
+        0.90,
+        0.80,
+        0.80,  # 00-05: batch processing
+        0.90,
+        1.00,  # 06-07: morning prep
+        1.20,
+        1.50,  # 08-09: peak sync
+        1.30,
+        1.30,  # 10-11: steady
+        1.10,
+        1.00,  # 12-13: lunch
+        1.30,
+        1.30,
+        1.20,  # 14-16: afternoon
+        1.10,
+        1.00,  # 17-18: EOD
+        0.90,
+        0.90,  # 19-20: evening
+        0.80,
+        0.80,
+        0.80,  # 21-23: night
     ]
 )
 """Server profile: steady 24/7 with slight daytime increase."""

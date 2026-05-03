@@ -1,7 +1,5 @@
 """Shared fixtures for domain unit tests."""
 
-import uuid
-
 import pytest
 
 from core.domain.entities import Branch, Employee, NetworkSegment, Workstation
@@ -23,7 +21,7 @@ class InMemoryEventPublisher(EventPublisher):
     def publish_batch(self, events: list[LogEvent]) -> None:
         self.published_events.extend(events)
 
-    def flush(self) -> None:
+    def flush(self, timeout_secs: float = 10.0) -> None:
         self.flushed = True
 
     def clear(self) -> None:

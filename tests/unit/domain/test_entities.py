@@ -71,9 +71,7 @@ class TestNetworkSegment:
 class TestWorkstation:
     """A workstation generates log events at a given EPS rate."""
 
-    def test_valid_workstation_is_created(
-        self, sample_workstation: Workstation
-    ) -> None:
+    def test_valid_workstation_is_created(self, sample_workstation: Workstation) -> None:
         """Workstation with valid hostname, IP, MAC, and OS is accepted."""
         assert sample_workstation.hostname == "SUC001-PC-001"
         assert sample_workstation.os_type == OSType.WINDOWS

@@ -1,0 +1,64 @@
+# Specialist: Linux Vector
+# Handles Syslog-formatted logs from OS-specific topic
+
+sources:
+  in_raw_kafka:
+    type: "kafka"
+    bootstrap_servers: "kafka:29092"
+    group_id: "vector-linux-emergency-v1"
+    topics: ["bankrange-raw-linux"]
+    auto_offset_reset: "earliest"
+
+transforms:
+  process_linux:
+    type: "remap"
+    inputs: ["in_raw_kafka"]
+    source: |
+      # 1. Metadatos base (LO QUE GRAFANA NECESITA)
+      .os = "linux"
+      .level = "info"
+      .environment = "simulation"
+      .tenant_id = "blue-team"
+      
+      # 2. Captura bruta del mensaje para ver si llega algo
+      .raw_message = to_string(.message) ?? "BINARY_DATA"
+      .message = .raw_message
+      
+      # 3. Extraer branch del payload vía regex
+      branch_match, err = parse_regex(.raw_message, r'branch=([A-Z]{3}\d{3,4})')
+      if err != null {
+          .branch = "unknown"
+      } else {
+          .branch = branch_match.captures[0]
+      }
+      
+      # 3. Intentar parsear el timestamp solo para el lag
+      # Si falla, usamos el tiempo de ahora
+      .timestamp = now()
+      
+      # Cleanup de basura de Kafka
+      del(.headers)
+      del(.source_type)
+      del(.topic)
+
+sinks:
+  out_clean_kafka:
+    type: "kafka"
+    inputs: ["process_linux"]
+    bootstrap_servers: "kafka:29092"
+    topic: "bankrange-clean-linux"
+    encoding:
+      codec: "json"
+
+  out_loki:
+    type: "loki"
+    inputs: ["process_linux"]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: "json"
+    labels:
+      os: "{{ os }}"
+      level: "{{ level }}"
+      environment: "{{ environment }}"
+      branch: "{{ branch }}"
+    out_of_order_action: "accept"

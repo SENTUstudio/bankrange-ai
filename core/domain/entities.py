@@ -68,10 +68,7 @@ class NetworkSegment(BaseModel):
             raise ValueError(f"Invalid CIDR block: {self.cidr}") from e
 
         if not network.is_private:
-            raise ValueError(
-                f"Network segment must use private CIDR (RFC 1918), "
-                f"got: {self.cidr}"
-            )
+            raise ValueError(f"Network segment must use private CIDR (RFC 1918), got: {self.cidr}")
         return self
 
     @property
@@ -95,8 +92,7 @@ class NetworkSegment(BaseModel):
         """
         if offset < 0 or offset >= self.capacity:
             raise SegmentCapacityExceededError(
-                f"Offset {offset} exceeds segment '{self.name}' "
-                f"capacity of {self.capacity} hosts"
+                f"Offset {offset} exceeds segment '{self.name}' capacity of {self.capacity} hosts"
             )
         network = IPv4Network(self.cidr, strict=False)
         # +1 to skip the network address

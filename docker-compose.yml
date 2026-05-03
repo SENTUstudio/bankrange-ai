@@ -43,18 +43,106 @@ services:
       kafka:
         condition: service_healthy
 
-  # ---------------------------------------------------------
-  # DATA PIPELINE & OBSERVABILITY (Blue Team)
-  # ---------------------------------------------------------
-  vector:
-    image: timberio/vector:0.34.X-debian
-    container_name: bankrange-vector
-    command: ["-c", "/etc/vector/vector.yaml", "-v"] # Add verbose logging
-    volumes:
-      - ./config/vector.yaml:/etc/vector/vector.yaml:ro
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: bankrange-kafka-init
     depends_on:
       kafka:
         condition: service_healthy
+    command: >
+      /bin/bash -c "
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-raw-windows --partitions 3 --replication-factor 1 &&
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-raw-linux --partitions 3 --replication-factor 1 &&
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-raw-macos --partitions 1 --replication-factor 1 &&
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-clean-windows --partitions 3 --replication-factor 1 &&
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-clean-linux --partitions 3 --replication-factor 1 &&
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic bankrange-clean-macos --partitions 1 --replication-factor 1
+      "
+
+  bankrange-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: bankrange-api
+    ports:
+      - "8000:8000"
+    environment:
+      - BR_KAFKA_BROKERS=kafka:29092
+      - BR_NUM_BRANCHES=10
+      - BR_WORKSTATIONS_PER_BRANCH=20
+      - BR_EMPLOYEES_PER_BRANCH=30
+      - BR_WINDOWS_PCT=60
+      - BR_LINUX_PCT=30
+      - BR_MACOS_PCT=10
+      - BR_BASE_EPS=2.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bankrange-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: bankrange-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - BR_API_URL=http://bankrange-api:8000
+    depends_on:
+      bankrange-api:
+        condition: service_healthy
+
+  # ---------------------------------------------------------
+  # DATA PIPELINE & OBSERVABILITY (Trident Architecture)
+  # ---------------------------------------------------------
+  vector-windows:
+    image: timberio/vector:0.34.X-debian
+    container_name: bankrange-vector-windows
+    command: ["-c", "/etc/vector/windows.yaml"]
+    volumes:
+      - ./config/vector/windows.yaml:/etc/vector/windows.yaml:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      loki:
+        condition: service_started
+    restart: unless-stopped
+
+  vector-linux:
+    image: timberio/vector:0.34.X-debian
+    container_name: bankrange-vector-linux
+    command: ["-c", "/etc/vector/linux.yaml"]
+    volumes:
+      - ./config/vector/linux.yaml:/etc/vector/linux.yaml:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      loki:
+        condition: service_started
+    restart: unless-stopped
+
+  vector-macos:
+    image: timberio/vector:0.34.X-debian
+    container_name: bankrange-vector-macos
+    command: ["-c", "/etc/vector/macos.yaml"]
+    volumes:
+      - ./config/vector/macos.yaml:/etc/vector/macos.yaml:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       loki:
         condition: service_started
     restart: unless-stopped
@@ -65,8 +153,6 @@ services:
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
-    # In a real environment, you'd mount a volume here, but to avoid 
-    # exploding local disk space in dev mode, we keep it ephemeral.
     restart: unless-stopped
 
   grafana:

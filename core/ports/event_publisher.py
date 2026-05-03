@@ -51,10 +51,13 @@ class EventPublisher(Protocol):
         """
         ...
 
-    def flush(self) -> None:
+    def flush(self, timeout_secs: float = 10.0) -> None:
         """Ensure all buffered events are sent.
 
         Call this at the end of a simulation cycle or on shutdown
         to guarantee delivery of all pending events.
+
+        Args:
+            timeout_secs: Maximum seconds to wait for delivery.
         """
         ...

@@ -20,7 +20,7 @@ It does NOT know about Kafka, files, or any infrastructure.
 """
 
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from core.domain.entities import Branch, Workstation
 from core.domain.event_templates import EventTemplate, pick_template
@@ -64,6 +64,7 @@ class EventGenerator:
         self._publisher = publisher
         self._profile = temporal_profile or BANK_WORKDAY_PROFILE
         self._rng = random.Random(seed)
+        self._scale_multiplier: float = 1.0
 
         # Pre-compute the flat list of (workstation, branch_code) for speed
         self._workstation_registry: list[tuple[Workstation, str]] = []
@@ -75,6 +76,19 @@ class EventGenerator:
     def total_workstations(self) -> int:
         """Total number of workstations in the topology."""
         return len(self._workstation_registry)
+
+    def set_scale_multiplier(self, multiplier: float) -> None:
+        """Apply a runtime volume scaling factor.
+
+        Args:
+            multiplier: Scale factor. Must be >= 0.
+
+        Raises:
+            ValueError: If multiplier is negative.
+        """
+        if multiplier < 0:
+            raise ValueError("Scale multiplier must be >= 0")
+        self._scale_multiplier = multiplier
 
     def estimated_eps(self, dt: datetime) -> float:
         """Estimate total EPS for the topology at a given time.
@@ -88,9 +102,7 @@ class EventGenerator:
             Estimated total events per second across all workstations.
         """
         multiplier = self._profile.get_multiplier(dt)
-        return sum(
-            ws.eps * multiplier for ws, _ in self._workstation_registry
-        )
+        return sum(ws.eps * multiplier for ws, _ in self._workstation_registry) * self._scale_multiplier
 
     def generate_tick(self, tick_time: datetime | None = None) -> list[LogEvent]:
         """Generate one second worth of events for all workstations.
@@ -109,20 +121,18 @@ class EventGenerator:
         Returns:
             List of generated LogEvents.
         """
-        tick_time = tick_time or datetime.now(timezone.utc)
+        tick_time = tick_time or datetime.now(UTC)
         multiplier = self._profile.get_multiplier(tick_time)
         events: list[LogEvent] = []
 
         for ws, branch_code in self._workstation_registry:
-            effective_eps = ws.eps * multiplier
+            effective_eps = ws.eps * multiplier * self._scale_multiplier
             # Determine how many events this workstation produces this tick
             num_events = self._poisson_count(effective_eps)
 
             for _ in range(num_events):
                 template = pick_template(ws.os_type, self._rng)
-                event = self._create_event(
-                    ws, branch_code, template, tick_time
-                )
+                event = self._create_event(ws, branch_code, template, tick_time)
                 events.append(event)
 
         # Publish the batch
@@ -211,15 +221,17 @@ class EventGenerator:
             ),
             "process_name": lambda: self._rng.choice(
                 [
-                    "explorer.exe", "chrome.exe", "outlook.exe",
-                    "excel.exe", "svchost.exe", "notepad.exe",
+                    "explorer.exe",
+                    "chrome.exe",
+                    "outlook.exe",
+                    "excel.exe",
+                    "svchost.exe",
+                    "notepad.exe",
                 ]
             ),
             "process_id": lambda: self._rng.randint(1000, 65535),
             "exit_code": lambda: self._rng.choice([0, 0, 0, 1, -1]),
-            "access_mask": lambda: self._rng.choice(
-                ["0x1", "0x2", "0x4", "0x20"]
-            ),
+            "access_mask": lambda: self._rng.choice(["0x1", "0x2", "0x4", "0x20"]),
             "update_status": lambda: self._rng.choice(
                 ["no_updates", "updates_available", "installing"]
             ),
@@ -228,29 +240,25 @@ class EventGenerator:
                 f"10.{self._rng.randint(1, 10)}."
                 f"{self._rng.randint(1, 254)}.{self._rng.randint(1, 254)}"
             ),
-            "destination_port": lambda: self._rng.choice(
-                [80, 443, 8080, 3389, 22, 53, 389, 636]
-            ),
+            "destination_port": lambda: self._rng.choice([80, 443, 8080, 3389, 22, 53, 389, 636]),
             "source_port": lambda: self._rng.randint(49152, 65535),
             "source_ip": lambda: (
                 f"10.{self._rng.randint(1, 10)}."
                 f"{self._rng.randint(1, 254)}.{self._rng.randint(1, 254)}"
             ),
             "protocol": lambda: self._rng.choice(["TCP", "UDP", "TLS"]),
-            "interface": lambda: self._rng.choice(
-                ["eth0", "eth1", "bond0"]
-            ),
+            "interface": lambda: self._rng.choice(["eth0", "eth1", "bond0"]),
             "domain": lambda: self._rng.choice(
                 [
-                    "bank-intranet.local", "mail.bank.local",
-                    "updates.microsoft.com", "ntp.ubuntu.com",
+                    "bank-intranet.local",
+                    "mail.bank.local",
+                    "updates.microsoft.com",
+                    "ntp.ubuntu.com",
                 ]
             ),
             "record_type": lambda: self._rng.choice(["A", "AAAA", "CNAME"]),
             # Linux
-            "ssh_method": lambda: self._rng.choice(
-                ["publickey", "password"]
-            ),
+            "ssh_method": lambda: self._rng.choice(["publickey", "password"]),
             "service_name": lambda: self._rng.choice(
                 ["nginx", "postgresql", "redis", "sshd", "cron"]
             ),
@@ -258,9 +266,7 @@ class EventGenerator:
             "cpu_pct": lambda: self._rng.randint(5, 95),
             "load_avg": lambda: round(self._rng.uniform(0.1, 4.0), 2),
             "uid": lambda: self._rng.choice([0, 1000, 1001, 33, 65534]),
-            "operation": lambda: self._rng.choice(
-                ["read", "write", "execute"]
-            ),
+            "operation": lambda: self._rng.choice(["read", "write", "execute"]),
             "attempt_count": lambda: self._rng.randint(1, 5),
             # File
             "file_path": lambda: self._rng.choice(
@@ -276,11 +282,17 @@ class EventGenerator:
             # Application
             "app_name": lambda: self._rng.choice(
                 [
-                    "BankCoreApp", "OutlookDesktop", "ChromeBrowser",
-                    "ExcelReporting", "VPNClient", "AntivirusEngine",
+                    "BankCoreApp",
+                    "OutlookDesktop",
+                    "ChromeBrowser",
+                    "ExcelReporting",
+                    "VPNClient",
+                    "AntivirusEngine",
                 ]
             ),
-            "app_version": lambda: f"{self._rng.randint(1, 5)}.{self._rng.randint(0, 9)}.{self._rng.randint(0, 99)}",
+            "app_version": lambda: (
+                f"{self._rng.randint(1, 5)}.{self._rng.randint(0, 9)}.{self._rng.randint(0, 99)}"
+            ),
             "bundle_id": lambda: "com.bank.app",
             "error_code": lambda: self._rng.choice(
                 ["E_TIMEOUT", "E_MEMORY", "E_NETWORK", "E_CONFIG"]
@@ -289,9 +301,7 @@ class EventGenerator:
                 ["time.windows.com", "pool.ntp.org", "ntp.ubuntu.com"]
             ),
             "device_type": lambda: "bluetooth_controller",
-            "auth_method": lambda: self._rng.choice(
-                ["password", "touchid", "smartcard"]
-            ),
+            "auth_method": lambda: self._rng.choice(["password", "touchid", "smartcard"]),
         }
 
         generator = generators.get(key)

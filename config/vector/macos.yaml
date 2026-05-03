@@ -1,0 +1,72 @@
+# Specialist: macOS Vector
+# Handles Tabular macOS logs from OS-specific topic
+
+sources:
+  in_raw_kafka:
+    type: "kafka"
+    bootstrap_servers: "kafka:29092"
+    group_id: "vector-macos-trident-v1"
+    topics: ["bankrange-raw-macos"] # Physical routing
+    auto_offset_reset: "earliest"
+
+transforms:
+  process_macos:
+    type: "remap"
+    inputs: ["in_raw_kafka"]
+    source: |
+      # Metadatos base
+      .tenant_id = "blue-team"
+      .environment = "simulation"
+      .os = "macos"
+      ingest_ts = now()
+      raw = to_string(.message) ?? ""
+      
+      # Parsing Tabular
+      parts = split(raw, "\t")
+      if length(parts) >= 9 {
+          .timestamp = parts[0]
+          .hostname = parts[1]
+          .username = parts[2]
+          .event_type = parts[4]
+          .Level = parts[5]
+          .message = parts[6]
+          .IP = parts[7]
+          .Branch = parts[8]
+      }
+      
+      # Normalización segura
+      .level = downcase(to_string(.Level) ?? "info")
+      .branch = to_string(.Branch) ?? "unknown"
+      
+      # Cálculo de Lag
+      ts_str = to_string(.timestamp) ?? ""
+      ts_obj = parse_timestamp(ts_str, "%+") ?? ingest_ts
+      .pipeline_lag_ms = (to_float(ingest_ts) - to_float(ts_obj)) * 1000.0
+      if .pipeline_lag_ms < 0.0 { .pipeline_lag_ms = 0.0 }
+      
+      # Cleanup
+      del(.headers)
+      del(.source_type)
+      del(.topic)
+
+sinks:
+  out_clean_kafka:
+    type: "kafka"
+    inputs: ["process_macos"]
+    bootstrap_servers: "kafka:29092"
+    topic: "bankrange-clean-macos"
+    encoding:
+      codec: "json"
+
+  out_loki:
+    type: "loki"
+    inputs: ["process_macos"]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: "json"
+    labels:
+      os: "{{ os }}"
+      level: "{{ level }}"
+      environment: "{{ environment }}"
+      branch: "{{ branch }}"
+    out_of_order_action: "accept"

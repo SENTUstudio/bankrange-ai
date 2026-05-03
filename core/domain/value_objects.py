@@ -113,4 +113,3 @@ class Severity(StrEnum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-

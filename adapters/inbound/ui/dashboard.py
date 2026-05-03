@@ -57,42 +57,42 @@ if not status_data:
 else:
     # 1. Top Metrics row
     st.subheader("Live Simulation Status")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
+
     col1.metric(
         label="Target Workstations",
         value=f"{status_data['total_workstations']:,}",
-        help="Amount of simulated PCs generated from topology"
+        help="Amount of simulated PCs generated from topology",
     )
-    
+
     col2.metric(
         label="Engine Status",
-        value=status_data['status'].upper(),
-        delta="Active" if status_data['status'] == "running" else "Dormant",
-        delta_color="normal" if status_data['status'] == "running" else "off",
+        value=status_data["status"].upper(),
+        delta="Active" if status_data["status"] == "running" else "Dormant",
+        delta_color="normal" if status_data["status"] == "running" else "off",
     )
-    
-    current_eps = status_data['estimated_eps']
+
+    current_eps = status_data["estimated_eps"]
     col3.metric(
         label="Est. EPS Transmitting",
         value=f"{current_eps:,.0f} evt/s",
-        help="Estimated events per second being produced."
+        help="Estimated events per second being produced.",
     )
-    
+
     # 2. Controls Segment
     st.divider()
     st.subheader("Global Control Overrides")
-    
+
     scale_val = st.slider(
         "Traffic Generation Multiplier (x Base Workday EPS)",
         min_value=0.0,
         max_value=20.0,
         value=float(status_data["current_multiplier"]),
         step=0.1,
-        help="0.0 stops traffic. >1.0 amplifies peak hour volume."
+        help="0.0 stops traffic. >1.0 amplifies peak hour volume.",
     )
-    
+
     # Check if user slid it
     if scale_val != status_data["current_multiplier"]:
         update_multiplier(scale_val)

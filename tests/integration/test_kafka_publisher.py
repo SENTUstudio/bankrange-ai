@@ -5,8 +5,7 @@ confluent_kafka Producer without requiring a real Kafka cluster
 running during the standard CI/CD pipeline.
 """
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,7 +20,7 @@ from core.domain.value_objects import EventType, OSType
 def sample_event() -> LogEvent:
     """A valid LogEvent for testing the publisher."""
     return LogEvent(
-        timestamp=datetime(2026, 1, 15, 10, 30, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 15, 10, 30, tzinfo=UTC),
         hostname="SUC001-PC-001",
         ip_address="10.1.1.10",
         os_type=OSType.WINDOWS,
@@ -42,37 +41,34 @@ class TestKafkaEventPublisher:
     ) -> None:
         """Events must be serialized to chaotic raw strings and sent to the configured topic."""
         mock_producer_instance = mock_producer_class.return_value
-        
+
         publisher = KafkaEventPublisher(
             bootstrap_servers="localhost:9092",
-            topic="bankrange-logs",
+            topic_prefix="bankrange-raw",
         )
-        
+
         publisher.publish(sample_event)
-        
+
         # Verify the producer was called once
         mock_producer_instance.produce.assert_called_once()
-        
+
         # Extract arguments passed to Produce
         args, kwargs = mock_producer_instance.produce.call_args
-        
+
         # Topic should be the first positional arg or kwarg
         topic = kwargs.get("topic") if not args else args[0]
-        assert topic == "bankrange-logs"
-        
+        assert topic == "bankrange-raw-windows"
+
         # Determine the payload
         payload = kwargs.get("value")
         if payload is None and len(args) > 1:
             payload = args[1]
-            
+
         assert payload is not None
-        
+
         # Payload must be a valid UTF-8 decoded string that mirrors to_raw_format()
-        if isinstance(payload, bytes):
-            payload_str = payload.decode("utf-8")
-        else:
-            payload_str = payload
-            
+        payload_str = payload.decode("utf-8") if isinstance(payload, bytes) else payload
+
         assert "SUC001-PC-001" in payload_str
         assert "EventData" in payload_str  # Windows dummy schema verification
 
@@ -82,35 +78,33 @@ class TestKafkaEventPublisher:
     ) -> None:
         """publish_batch should call produce multiple times and then poll()."""
         mock_producer_instance = mock_producer_class.return_value
-        
+
         publisher = KafkaEventPublisher(
             bootstrap_servers="localhost:9092",
-            topic="bankrange-logs",
+            topic_prefix="bankrange-raw",
         )
-        
+
         events = [sample_event, sample_event, sample_event]
         publisher.publish_batch(events)
-        
+
         # Produce called 3 times
         assert mock_producer_instance.produce.call_count == 3
         # Poll should be called to handle delivery callbacks
         mock_producer_instance.poll.assert_called_once_with(0)
 
     @patch("adapters.outbound.kafka_publisher.Producer")
-    def test_flush_calls_producer_flush(
-        self, mock_producer_class: MagicMock
-    ) -> None:
-        """The domain flush method must map to the infrastructure flush."""
+    def test_flush_calls_producer_flush_with_timeout(self, mock_producer_class: MagicMock) -> None:
+        """The domain flush method must map to the infrastructure flush with timeout_secs."""
         mock_producer_instance = mock_producer_class.return_value
-        
+
         publisher = KafkaEventPublisher(
             bootstrap_servers="localhost:9092",
-            topic="bankrange-logs",
+            topic_prefix="bankrange-raw",
         )
-        
-        publisher.flush()
-        
-        mock_producer_instance.flush.assert_called_once()
+
+        publisher.flush(timeout_secs=5.0)
+
+        mock_producer_instance.flush.assert_called_once_with(5.0)
 
     @patch("adapters.outbound.kafka_publisher.Producer")
     def test_kafka_exceptions_are_wrapped_in_domain_exceptions(
@@ -120,11 +114,11 @@ class TestKafkaEventPublisher:
         mock_producer_instance = mock_producer_class.return_value
         # Simulate a buffer overflow or connection error raised by confluent_kafka
         mock_producer_instance.produce.side_effect = KafkaException("Buffer full")
-        
+
         publisher = KafkaEventPublisher(
             bootstrap_servers="localhost:9092",
-            topic="bankrange-logs",
+            topic_prefix="bankrange-raw",
         )
-        
-        with pytest.raises(RuntimeError, match="Failed to publish event to Kafka"):
+
+        with pytest.raises(RuntimeError, match="Failed to publish event to bankrange-raw-windows:"):
             publisher.publish(sample_event)

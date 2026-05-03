@@ -1,0 +1,74 @@
+# Specialist: Windows Vector
+# Handles XML-formatted Event Logs from OS-specific topic
+
+sources:
+  in_raw_kafka:
+    type: "kafka"
+    bootstrap_servers: "kafka:29092"
+    group_id: "vector-windows-trident-v2"
+    topics: ["bankrange-raw-windows"]
+    auto_offset_reset: "earliest"
+
+transforms:
+  process_windows:
+    type: "remap"
+    inputs: ["in_raw_kafka"]
+    source: |
+      # 1. Metadatos y Ingesta
+      .tenant_id = "blue-team"
+      .environment = "simulation"
+      .os = "windows"
+      ingest_ts = now()
+      raw = to_string(.message) ?? ""
+      
+      # 2. Parsing XML Robusto
+      xml_obj, err = parse_xml(raw)
+      if err == null {
+          .timestamp = xml_obj.Event.System.TimeCreated."@SystemTime"
+          .hostname = xml_obj.Event.System.Computer
+          .event_type = xml_obj.Event.System.Provider."@Name"
+          .username = xml_obj.Event.System.Security."@UserID"
+          
+          # Fixed fields are named child elements under EventData — order-independent.
+          .message    = xml_obj.Event.EventData.Message."#text"
+          .level      = downcase(to_string(xml_obj.Event.EventData.Level."#text") ?? "info")
+          .ip_address = xml_obj.Event.EventData.IP."#text"
+          .branch     = xml_obj.Event.EventData.Branch."#text"
+      }
+      
+      # Asegurar campos para Loki
+      .level = .level ?? "info"
+      .branch = .branch ?? "unknown"
+      
+      # 3. Cálculo de Lag
+      ts_str = to_string(.timestamp) ?? ""
+      ts_obj = parse_timestamp(ts_str, "%+") ?? ingest_ts
+      .pipeline_lag_ms = (to_float(ingest_ts) - to_float(ts_obj)) * 1000.0
+      if .pipeline_lag_ms < 0.0 { .pipeline_lag_ms = 0.0 }
+      
+      # 4. Cleanup
+      del(.headers)
+      del(.source_type)
+      del(.topic)
+
+sinks:
+  out_clean_kafka:
+    type: "kafka"
+    inputs: ["process_windows"]
+    bootstrap_servers: "kafka:29092"
+    topic: "bankrange-clean-windows"
+    encoding:
+      codec: "json"
+
+  out_loki:
+    type: "loki"
+    inputs: ["process_windows"]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: "json"
+    labels:
+      os: "{{ os }}"
+      level: "{{ level }}"
+      environment: "{{ environment }}"
+      branch: "{{ branch }}"
+    out_of_order_action: "accept"

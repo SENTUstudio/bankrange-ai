@@ -1,0 +1,1 @@
+# Adapters - Infrastructure implementations

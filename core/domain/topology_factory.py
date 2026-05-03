@@ -46,14 +46,10 @@ class TopologyFactory:
             segments = self._create_segments(config, branch_idx)
 
             # Build workstations with proper OS distribution and IP allocation
-            workstations = self._create_workstations(
-                config, branch_code, segments, branch_idx
-            )
+            workstations = self._create_workstations(config, branch_code, segments, branch_idx)
 
             # Build employees and assign them to workstations
-            employees = self._create_employees(
-                config, workstations, branch_idx
-            )
+            employees = self._create_employees(config, workstations, branch_idx)
 
             branch = Branch(
                 code=branch_code,
@@ -68,16 +64,12 @@ class TopologyFactory:
 
         return branches
 
-    def _create_segments(
-        self, config: TopologyConfig, branch_idx: int
-    ) -> list[NetworkSegment]:
+    def _create_segments(self, config: TopologyConfig, branch_idx: int) -> list[NetworkSegment]:
         """Create network segments for a branch from templates."""
         segments: list[NetworkSegment] = []
 
         for template in config.segment_templates:
-            cidr = template.cidr_prefix.replace(
-                "{branch_idx}", str(branch_idx + 1)
-            )
+            cidr = template.cidr_prefix.replace("{branch_idx}", str(branch_idx + 1))
             segment = NetworkSegment(
                 name=f"{template.name_prefix}-{branch_idx + 1:03d}",
                 cidr=cidr,
@@ -97,6 +89,13 @@ class TopologyFactory:
         """Create workstations with OS distribution and IP allocation."""
         workstations: list[Workstation] = []
         os_sequence = self._build_os_sequence(config)
+
+        # Shuffle the sequence deterministically per branch to ensure
+        # even distribution even in small branches.
+        import random
+
+        rng = random.Random(config.num_branches + branch_idx)  # Stable seed
+        rng.shuffle(os_sequence)
 
         # Use the first segment for workstation IPs
         primary_segment = segments[0]
@@ -127,8 +126,12 @@ class TopologyFactory:
         """Create employees and assign them to workstations."""
         employees: list[Employee] = []
         departments = [
-            "operations", "treasury", "compliance",
-            "customer_service", "it_support", "management",
+            "operations",
+            "treasury",
+            "compliance",
+            "customer_service",
+            "it_support",
+            "management",
         ]
 
         for emp_idx in range(config.employees_per_branch):
@@ -156,15 +159,9 @@ class TopologyFactory:
         This is then indexed modulo 100 for each workstation.
         """
         sequence: list[OSType] = []
-        sequence.extend(
-            [OSType.WINDOWS] * config.os_distribution.windows_pct
-        )
-        sequence.extend(
-            [OSType.LINUX] * config.os_distribution.linux_pct
-        )
-        sequence.extend(
-            [OSType.MACOS] * config.os_distribution.macos_pct
-        )
+        sequence.extend([OSType.WINDOWS] * config.os_distribution.windows_pct)
+        sequence.extend([OSType.LINUX] * config.os_distribution.linux_pct)
+        sequence.extend([OSType.MACOS] * config.os_distribution.macos_pct)
         return sequence
 
     @staticmethod
@@ -178,10 +175,7 @@ class TopologyFactory:
         """
         branch_hex = f"{branch_idx:04X}"
         ws_hex = f"{ws_idx:06X}"
-        mac_str = (
-            f"02:{branch_hex[:2]}:{branch_hex[2:4]}:"
-            f"{ws_hex[:2]}:{ws_hex[2:4]}:{ws_hex[4:6]}"
-        )
+        mac_str = f"02:{branch_hex[:2]}:{branch_hex[2:4]}:{ws_hex[:2]}:{ws_hex[2:4]}:{ws_hex[4:6]}"
         return MacAddress(value=mac_str)
 
     @staticmethod
@@ -198,7 +192,13 @@ class TopologyFactory:
     def _city_for_branch(branch_idx: int) -> str:
         """Assign city based on branch index (round-robin)."""
         cities = [
-            "Buenos Aires", "Córdoba", "Rosario", "Mendoza",
-            "Tucumán", "La Plata", "Mar del Plata", "Salta",
+            "Buenos Aires",
+            "Córdoba",
+            "Rosario",
+            "Mendoza",
+            "Tucumán",
+            "La Plata",
+            "Mar del Plata",
+            "Salta",
         ]
         return cities[branch_idx % len(cities)]

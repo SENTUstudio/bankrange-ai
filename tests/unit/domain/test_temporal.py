@@ -16,20 +16,18 @@ class TestTemporalProfile:
         """A profile must have exactly 24 hourly multipliers."""
         with pytest.raises(ValidationError):
             TemporalProfile(hourly_multipliers=[1.0] * 23)  # Missing 1
-            
+
         with pytest.raises(ValidationError):
             TemporalProfile(hourly_multipliers=[1.0] * 25)  # 1 extra
 
     def test_get_multiplier_returns_correct_value_for_hour(self) -> None:
         """The multiplier must match the specific hour of the datetime."""
-        profile = TemporalProfile(
-            hourly_multipliers=[0.0] * 9 + [1.5] + [0.0] * 14
-        )
-        
+        profile = TemporalProfile(hourly_multipliers=[0.0] * 9 + [1.5] + [0.0] * 14)
+
         # 09:xx should return 1.5
         dt_9am = datetime(2026, 1, 15, 9, 30)
         assert profile.get_multiplier(dt_9am) == 1.5
-        
+
         # 08:xx should return 0.0
         dt_8am = datetime(2026, 1, 15, 8, 59)
         assert profile.get_multiplier(dt_8am) == 0.0
@@ -39,7 +37,7 @@ class TestTemporalProfile:
         assert BANK_WORKDAY_PROFILE.hourly_multipliers[9] == 1.80  # Morning peak
         assert BANK_WORKDAY_PROFILE.hourly_multipliers[14] == 1.50  # Afternoon peak
         assert BANK_WORKDAY_PROFILE.hourly_multipliers[13] == 0.80  # Lunch dip
-        assert BANK_WORKDAY_PROFILE.hourly_multipliers[2] == 0.05   # Deep night
+        assert BANK_WORKDAY_PROFILE.hourly_multipliers[2] == 0.05  # Deep night
 
     def test_server_profile_is_always_active(self) -> None:
         """Servers never sleep, their minimum multiplier should be significant."""
