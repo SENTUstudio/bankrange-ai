@@ -1,30 +1,34 @@
 <script>
-  /** Tactical Map Interface — BankRange */
+  import { appState } from '$lib/state/appState.svelte';
+  import { engineState, updateEngineState } from '$lib/state/engineStore.svelte';
+  import { loadBranches } from '$lib/state/branchStore.svelte';
+  import { sseService } from '$lib/services/sse.service';
+  import BootSequence from '$lib/components/BootSequence.svelte';
+  import MapView from '$lib/components/MapView.svelte';
+  import ControlPanel from '$lib/components/ControlPanel.svelte';
+  import { onMount } from 'svelte';
+
+  let sseConnected = $state(true);
+
+  onMount(() => {
+    loadBranches();
+    sseService.connect(
+      (data) => {
+        updateEngineState(data);
+      },
+      (connected) => {
+        sseConnected = connected;
+      }
+    );
+    return () => {
+      sseService.disconnect();
+    };
+  });
 </script>
 
-<div class="container">
-  <h1>BankRange Tactical Map</h1>
-  <p>System operational.</p>
-</div>
-
-<style>
-  .container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    font-family: var(--font-mono);
-  }
-
-  h1 {
-    color: var(--color-primary);
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  p {
-    color: var(--color-muted);
-    font-size: 0.875rem;
-  }
-</style>
+{#if appState.phase === 'boot'}
+  <BootSequence />
+{:else}
+  <MapView />
+  <ControlPanel />
+{/if}
