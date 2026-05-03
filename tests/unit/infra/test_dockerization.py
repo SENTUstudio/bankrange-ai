@@ -19,11 +19,19 @@ def test_dockerfile_ui_exists():
     assert os.path.exists("Dockerfile.ui"), "Dockerfile.ui must exist"
 
 
-def test_dockerfile_ui_base_image():
+def test_dockerfile_ui_uses_node_builder():
     with open("Dockerfile.ui") as f:
         content = f.read()
-    assert "FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim" in content, (
-        "Dockerfile.ui must use uv base image"
+    assert "FROM node:20-alpine AS builder" in content, (
+        "Dockerfile.ui must use Node builder stage"
+    )
+
+
+def test_dockerfile_ui_uses_nginx():
+    with open("Dockerfile.ui") as f:
+        content = f.read()
+    assert "FROM nginx:alpine" in content, (
+        "Dockerfile.ui must use Nginx Alpine serve stage"
     )
 
 

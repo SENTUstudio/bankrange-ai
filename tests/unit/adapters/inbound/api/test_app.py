@@ -121,19 +121,19 @@ class TestFastAPIApp:
         assert allow_origin != "https://evil.com"
 
     def test_cors_allows_default_origin(self, client) -> None:
-        """The default Streamlit origin must be permitted."""
+        """The default UI origin must be permitted."""
         response = client.get(
             "/status",
-            headers={"Origin": "http://localhost:8501"},
+            headers={"Origin": "http://localhost:8080"},
         )
         assert response.status_code == 200
-        assert response.headers.get("access-control-allow-origin") == "http://localhost:8501"
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:8080"
 
     def test_cors_allows_multiple_origins_from_env(self, monkeypatch) -> None:
         """ALLOWED_ORIGINS env var can specify multiple comma-separated origins."""
         import importlib
 
-        monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:8501,https://app.example.com")
+        monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:8080,https://app.example.com")
         importlib.reload(app_module)
 
         monkeypatch.setattr(app_module, "_start_background_engine", lambda state: None)
@@ -146,9 +146,9 @@ class TestFastAPIApp:
             assert response.headers.get("access-control-allow-origin") == "https://app.example.com"
 
             # Second origin (default)
-            response = test_client.get("/status", headers={"Origin": "http://localhost:8501"})
+            response = test_client.get("/status", headers={"Origin": "http://localhost:8080"})
             assert response.status_code == 200
-            assert response.headers.get("access-control-allow-origin") == "http://localhost:8501"
+            assert response.headers.get("access-control-allow-origin") == "http://localhost:8080"
 
     def test_lifespan_injects_engine_state(self, monkeypatch) -> None:
         """Lifespan must create an EngineState and attach it to app.state."""

@@ -205,8 +205,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable CORS for Streamlit
-_allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8501")
+# Enable CORS for local dev (Nginx proxy makes this optional in production)
+_allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8080")
 _allowed_origins = [origin.strip() for origin in _allowed_origins_str.split(",") if origin.strip()]
 
 app.add_middleware(
