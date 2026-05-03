@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build
+build/
+.svelte-kit/
+
+# Env
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

@@ -1,4 +1,4 @@
-.PHONY: help install test test-cov lint lint-fix format typecheck quality up down logs run run-api run-ui clean
+.PHONY: help install test test-cov lint lint-fix format typecheck quality up down logs run run-api run-ui clean dev-ui build-ui test-ui-unit test-ui-e2e
 
 help: ## Show this help message
 	@echo "======================================================================"
@@ -53,6 +53,18 @@ run-api: ## Start the C&C FastAPI Engine Background Loop (local)
 
 run-ui: ## Start the Streamlit Control Panel Interface (local)
 	uv run streamlit run adapters/inbound/ui/dashboard.py
+
+dev-ui: ## Start SvelteKit dev server
+	cd ui && npm run dev
+
+build-ui: ## Build static Svelte app
+	cd ui && npm run build
+
+test-ui-unit: ## Run Vitest unit tests
+	cd ui && npm run test
+
+test-ui-e2e: ## Run Playwright E2E tests
+	cd ui && npm run test:e2e
 
 clean: ## Remove cache files and docker build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} +
