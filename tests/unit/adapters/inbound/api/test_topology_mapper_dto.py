@@ -104,6 +104,26 @@ class TestToBranchDetail:
         result = _to_branch_detail(sample_branch)
         assert result["coordinates"]["lat"] == pytest.approx(-34.6037, abs=0.0001)
 
+    def test_maps_employees(self, sample_branch: Branch) -> None:
+        """_to_branch_detail includes employee details."""
+        result = _to_branch_detail(sample_branch)
+        assert len(result["employees"]) == 1
+        emp = result["employees"][0]
+        assert emp["employee_code"] == "EM000001"
+        assert emp["full_name"] == "Employee 001-0001"
+        assert emp["department"] == "operations"
+        assert emp["workstation_id"] is not None
+
+    def test_employee_without_workstation(self, sample_branch: Branch) -> None:
+        """Employee without workstation assignment has None workstation_id."""
+        branch = sample_branch.model_copy(
+            update={"employees": [
+                sample_branch.employees[0].model_copy(update={"workstation_id": None})
+            ]}
+        )
+        result = _to_branch_detail(branch)
+        assert result["employees"][0]["workstation_id"] is None
+
 
 class TestToNetworkGraph:
     def test_creates_router_node(self, sample_branch: Branch) -> None:

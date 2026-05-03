@@ -295,6 +295,7 @@ async def get_branch_network(branch_code: str) -> dict:
 async def _sse_generator():
     """Async generator yielding SSE-formatted engine state updates."""
     engine = app.state.engine
+    heartbeat_counter = 0
     while True:
         payload = {
             "status": "running" if engine.is_running else "stopped",
@@ -304,6 +305,13 @@ async def _sse_generator():
             "timestamp": datetime.now(UTC).isoformat(),
         }
         yield f"data: {json.dumps(payload)}\n\n"
+        
+        # Heartbeat every 15 seconds to keep proxies alive
+        heartbeat_counter += 1
+        if heartbeat_counter >= 15:
+            yield ":heartbeat\n\n"
+            heartbeat_counter = 0
+            
         await asyncio.sleep(1)
 
 

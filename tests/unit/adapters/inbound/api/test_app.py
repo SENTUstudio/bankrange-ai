@@ -160,3 +160,175 @@ class TestFastAPIApp:
         with TestClient(fresh_module.app) as test_client:
             assert hasattr(test_client.app.state, "engine")
             assert isinstance(test_client.app.state.engine, fresh_module.EngineState)
+
+
+class TestTopologyEndpoints:
+    def test_list_branches_returns_empty_when_no_generator(self, client) -> None:
+        """GET /topology/branches should return [] when generator is None."""
+        app_module.app.state.engine._generator = None
+
+        response = client.get("/topology/branches")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_branch_raises_404_when_no_generator(self, client) -> None:
+        """GET /topology/branches/{code} should 404 when generator is None."""
+        app_module.app.state.engine._generator = None
+
+        response = client.get("/topology/branches/SUC001")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Branch not found"
+
+    def test_get_branch_network_raises_404_when_no_generator(self, client) -> None:
+        """GET /topology/branches/{code}/network should 404 when generator is None."""
+        app_module.app.state.engine._generator = None
+
+        response = client.get("/topology/branches/SUC001/network")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Branch not found"
+
+    def test_get_branch_raises_404_for_unknown_branch(self, client) -> None:
+        """GET /topology/branches/{code} should 404 for non-existent branch."""
+        from unittest.mock import MagicMock
+
+        mock_generator = MagicMock()
+        mock_generator.branches = []
+        app_module.app.state.engine._generator = mock_generator
+
+        response = client.get("/topology/branches/UNKNOWN")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Branch not found"
+
+    def test_get_branch_network_raises_404_for_unknown_branch(self, client) -> None:
+        """GET /topology/branches/{code}/network should 404 for non-existent branch."""
+        from unittest.mock import MagicMock
+
+        mock_generator = MagicMock()
+        mock_generator.branches = []
+        app_module.app.state.engine._generator = mock_generator
+
+        response = client.get("/topology/branches/UNKNOWN/network")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Branch not found"
+
+
+class TestSseGenerator:
+    def test_sse_generator_yields_data(self) -> None:
+        """_sse_generator should yield SSE-formatted data."""
+        import asyncio
+
+        from adapters.inbound.api.app import _sse_generator, EngineState
+
+        engine = EngineState(is_running=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        async def collect() -> list[str]:
+            chunks: list[str] = []
+            gen = _sse_generator()
+            for _ in range(3):
+                chunks.append(await gen.__anext__())
+            return chunks
+
+        chunks = asyncio.run(collect())
+        assert len(chunks) == 3
+        for chunk in chunks:
+            assert chunk.startswith("data: ")
+            assert "running" in chunk
+
+    def test_sse_generator_heartbeat_every_15(self) -> None:
+        """_sse_generator should yield a heartbeat every 15 iterations."""
+        import asyncio
+
+        from adapters.inbound.api.app import _sse_generator, EngineState
+
+        engine = EngineState(is_running=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        async def collect() -> list[str]:
+            chunks: list[str] = []
+            gen = _sse_generator()
+            for _ in range(16):
+                chunks.append(await gen.__anext__())
+            return chunks
+
+        chunks = asyncio.run(collect())
+        assert any(":heartbeat" in c for c in chunks)
+
+
+class TestRunEngineLoop:
+    def test_run_engine_loop_missing_components_returns_early(self) -> None:
+        """_run_engine_loop should return early if generator or publisher is None."""
+        import asyncio
+
+        from adapters.inbound.api.app import _run_engine_loop, EngineState
+
+        state = EngineState()
+        state._generator = None
+        state._publisher = None
+
+        asyncio.run(_run_engine_loop(state))
+        assert state.is_running is False
+
+    def test_run_engine_loop_runs_and_stops(self) -> None:
+        """_run_engine_loop should process ticks while is_running is True."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from adapters.inbound.api.app import _run_engine_loop, EngineState
+
+        mock_generator = MagicMock()
+        mock_generator.estimated_eps.return_value = 100.0
+        mock_generator.generate_tick.return_value = []
+        mock_generator.set_scale_multiplier = MagicMock()
+
+        mock_publisher = MagicMock()
+        mock_publisher.flush = MagicMock()
+
+        state = EngineState()
+        state._generator = mock_generator
+        state._publisher = mock_publisher
+        state.is_running = True
+
+        async def run_once() -> None:
+            # Stop after first iteration
+            async def stop_after() -> None:
+                await asyncio.sleep(0.05)
+                state.is_running = False
+
+            await asyncio.gather(_run_engine_loop(state), stop_after())
+
+        asyncio.run(run_once())
+        assert state.is_running is False
+        mock_publisher.flush.assert_called_once_with(5.0)
+
+    def test_run_engine_loop_cancelled_error(self) -> None:
+        """_run_engine_loop should handle CancelledError gracefully."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from adapters.inbound.api.app import _run_engine_loop, EngineState
+
+        mock_generator = MagicMock()
+        mock_generator.estimated_eps.return_value = 100.0
+        mock_generator.generate_tick.return_value = []
+        mock_generator.set_scale_multiplier = MagicMock()
+
+        mock_publisher = MagicMock()
+        mock_publisher.flush = MagicMock()
+
+        state = EngineState()
+        state._generator = mock_generator
+        state._publisher = mock_publisher
+        state.is_running = True
+
+        async def run_and_cancel() -> None:
+            task = asyncio.create_task(_run_engine_loop(state))
+            await asyncio.sleep(0.01)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(run_and_cancel())
+        assert state.is_running is False

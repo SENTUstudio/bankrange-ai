@@ -127,6 +127,16 @@ def _to_branch_detail(branch: Branch) -> dict:
             }
             for ws in branch.workstations
         ],
+        "employees": [
+            {
+                "id": str(emp.id),
+                "employee_code": emp.employee_code,
+                "full_name": emp.full_name,
+                "department": emp.department,
+                "workstation_id": str(emp.workstation_id) if emp.workstation_id else None,
+            }
+            for emp in branch.employees
+        ],
     }
 
 

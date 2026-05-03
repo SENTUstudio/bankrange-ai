@@ -46,6 +46,16 @@ class WorkstationDTO(BaseModel):
     eps: float = Field(ge=0.0, description="Events per second baseline rate")
 
 
+class EmployeeDTO(BaseModel):
+    """Employee information for branch detail."""
+
+    id: str = Field(description="Employee identifier")
+    employee_code: str = Field(description="Internal employee code (e.g., 'EM000001')")
+    full_name: str = Field(description="Employee full name")
+    department: str = Field(description="Bank department")
+    workstation_id: str | None = Field(default=None, description="Assigned workstation ID")
+
+
 class BranchDetailDTO(BaseModel):
     """Detailed information for a single branch."""
 
@@ -55,6 +65,7 @@ class BranchDetailDTO(BaseModel):
     coordinates: CoordinatesDTO = Field(description="Geographic and SVG coordinates")
     segments: list[NetworkSegmentDTO] = Field(description="Network segments")
     workstations: list[WorkstationDTO] = Field(description="Workstations")
+    employees: list[EmployeeDTO] = Field(description="Employees assigned to this branch")
 
 
 class GraphNodeDTO(BaseModel):

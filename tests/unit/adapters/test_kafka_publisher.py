@@ -26,6 +26,27 @@ def sample_event() -> LogEvent:
     )
 
 
+class TestKafkaEventPublisherInit:
+    """Tests for __init__ behavior."""
+
+    @patch("adapters.outbound.kafka_publisher.Producer")
+    def test_init_with_custom_producer_config(self, mock_producer_class: MagicMock) -> None:
+        """Custom producer_config should be merged into base config."""
+        custom_config = {"linger.ms": 100, "compression.type": "gzip"}
+
+        KafkaEventPublisher(
+            bootstrap_servers="localhost:9092",
+            topic_prefix="test",
+            producer_config=custom_config,
+        )
+
+        mock_producer_class.assert_called_once()
+        config_passed = mock_producer_class.call_args.args[0]
+        assert config_passed["linger.ms"] == 100
+        assert config_passed["compression.type"] == "gzip"
+        assert config_passed["bootstrap.servers"] == "localhost:9092"
+
+
 class TestKafkaEventPublisherTopicPrefix:
     """Tests for topic_prefix routing behavior."""
 
@@ -99,6 +120,88 @@ class TestKafkaEventPublisherOnDelivery:
         _, kwargs = mock_producer_instance.produce.call_args
         assert "on_delivery" in kwargs
         assert kwargs["on_delivery"] == publisher._delivery_report
+
+
+class TestKafkaEventPublisherPublish:
+    """Tests for single publish method."""
+
+    @patch("adapters.outbound.kafka_publisher.Producer")
+    def test_publish_kafka_exception_raises_runtimeerror(
+        self, mock_producer_class: MagicMock, sample_event: LogEvent
+    ) -> None:
+        """KafkaException during publish must be wrapped in RuntimeError."""
+        mock_producer_instance = mock_producer_class.return_value
+        from confluent_kafka import KafkaException
+
+        mock_producer_instance.produce.side_effect = KafkaException("broker down")
+
+        publisher = KafkaEventPublisher(
+            bootstrap_servers="localhost:9092",
+            topic_prefix="bankrange-raw",
+        )
+
+        with pytest.raises(RuntimeError) as exc_info:
+            publisher.publish(sample_event)
+
+        assert "Failed to publish event" in str(exc_info.value)
+        assert "bankrange-raw-windows" in str(exc_info.value)
+
+    @patch("adapters.outbound.kafka_publisher.Producer")
+    def test_publish_success(self, mock_producer_class: MagicMock, sample_event: LogEvent) -> None:
+        """Successful publish should call produce and poll."""
+        mock_producer_instance = mock_producer_class.return_value
+
+        publisher = KafkaEventPublisher(
+            bootstrap_servers="localhost:9092",
+            topic_prefix="bankrange-raw",
+        )
+
+        publisher.publish(sample_event)
+
+        mock_producer_instance.produce.assert_called_once()
+        mock_producer_instance.poll.assert_called_once_with(0)
+
+
+class TestKafkaEventPublisherFlush:
+    """Tests for flush method."""
+
+    @patch("adapters.outbound.kafka_publisher.Producer")
+    def test_flush_delegates_to_producer(self, mock_producer_class: MagicMock) -> None:
+        """flush() should delegate to the internal producer with timeout."""
+        mock_producer_instance = mock_producer_class.return_value
+
+        publisher = KafkaEventPublisher(
+            bootstrap_servers="localhost:9092",
+            topic_prefix="bankrange-raw",
+        )
+
+        publisher.flush(timeout_secs=5.0)
+
+        mock_producer_instance.flush.assert_called_once_with(5.0)
+
+
+class TestKafkaEventPublisherDeliveryReport:
+    """Tests for _delivery_report static method."""
+
+    def test_delivery_report_with_error(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """When err is not None, it should print the error."""
+        err_msg = "Delivery failed: broker unavailable"
+        msg = MagicMock()
+
+        KafkaEventPublisher._delivery_report(err_msg, msg)
+
+        captured = capsys.readouterr()
+        assert "Message delivery failed" in captured.out
+        assert err_msg in captured.out
+
+    def test_delivery_report_without_error(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """When err is None, it should not print anything."""
+        msg = MagicMock()
+
+        KafkaEventPublisher._delivery_report(None, msg)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
 
 
 class TestKafkaEventPublisherRetry:

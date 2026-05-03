@@ -11,6 +11,7 @@ from adapters.inbound.api.dtos import (
     BranchSummaryDTO,
     BranchDetailDTO,
     WorkstationDTO,
+    EmployeeDTO,
     NetworkSegmentDTO,
     GraphNodeDTO,
     GraphEdgeDTO,
@@ -69,6 +70,31 @@ class TestWorkstationDTO:
         assert dto.eps == 2.0
 
 
+class TestEmployeeDTO:
+    def test_valid_employee(self) -> None:
+        """EmployeeDTO accepts valid employee data."""
+        dto = EmployeeDTO(
+            id="emp-1",
+            employee_code="EM000001",
+            full_name="Employee 001-0001",
+            department="operations",
+            workstation_id="ws-1",
+        )
+        assert dto.employee_code == "EM000001"
+        assert dto.department == "operations"
+        assert dto.workstation_id == "ws-1"
+
+    def test_employee_without_workstation(self) -> None:
+        """EmployeeDTO allows null workstation_id."""
+        dto = EmployeeDTO(
+            id="emp-1",
+            employee_code="EM000001",
+            full_name="Employee 001-0001",
+            department="operations",
+        )
+        assert dto.workstation_id is None
+
+
 class TestBranchDetailDTO:
     def test_valid_detail(self) -> None:
         """BranchDetailDTO accepts valid branch detail data."""
@@ -89,10 +115,20 @@ class TestBranchDetailDTO:
                     eps=2.0,
                 ),
             ],
+            employees=[
+                EmployeeDTO(
+                    id="emp-1",
+                    employee_code="EM000001",
+                    full_name="Employee 001-0001",
+                    department="operations",
+                    workstation_id="ws-1",
+                ),
+            ],
         )
         assert dto.code == "SUC001"
         assert len(dto.segments) == 1
         assert len(dto.workstations) == 1
+        assert len(dto.employees) == 1
 
 
 class TestGraphNodeDTO:
