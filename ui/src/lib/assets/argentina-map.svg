@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" class="w-full h-full">
+  <defs>
+    <linearGradient id="mapGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f0f1a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <path
+    d="M260,40 
+       L290,45 L320,55 L350,70 L370,90 
+       L385,115 L395,145 L405,175 L415,205 
+       L425,235 L435,265 L445,295 L455,325 
+       L465,355 L475,385 L485,415 L495,445 
+       L505,475 L515,505 L525,535 L535,565 
+       L545,595 L555,625 L565,655 L575,685 
+       L585,715 L595,745 L600,775 L595,800 
+       L570,790 L545,775 L520,755 L495,730 
+       L470,700 L445,665 L420,625 L395,580 
+       L370,530 L345,475 L320,415 L295,350 
+       L270,280 L245,205 L220,125 L195,40 
+       L180,35 L165,30 L150,25 L135,20 
+       L120,15 L105,10 L90,8 L75,6 
+       L60,5 L45,6 L30,10 L15,18 
+       L5,30 L0,45 L5,60 L15,70 
+       L30,75 L50,78 L70,80 L90,82 
+       L110,84 L130,86 L150,88 L170,90 
+       L190,92 L210,94 L230,96 L250,98 
+       L260,40 Z"
+    fill="url(#mapGrad)"
+    stroke="#2a2a4a"
+    stroke-width="1.5"
+  />
+</svg>

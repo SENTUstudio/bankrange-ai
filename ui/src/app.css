@@ -1,13 +1,25 @@
 :root {
+  /* Core background colors */
   --color-bg: #0a0a0a;
+  --color-bg-primary: #0a0a0a;
   --color-panel: #111111;
+  --color-bg-panel: #111111;
   --color-border: #222222;
-  --color-text: #e0e0e0;
-  --color-muted: #888888;
+  /* Alert colors (Pentagon aesthetic) */
   --color-alert: #ff3333;
+  --color-alert-red: #ff3333;
   --color-warn: #ffaa00;
+  --color-alert-orange: #ff8800;
   --color-success: #33ff33;
+  --color-alert-green: #00ff88;
+  /* Text colors */
+  --color-text: #e0e0e0;
+  --color-text-primary: #e0e0e0;
+  --color-muted: #888888;
+  --color-text-secondary: #888888;
+  /* Interactive */
   --color-primary: #00ccff;
+  --color-accent-cyan: #00ccff;
   --font-mono: "JetBrains Mono", monospace;
 }
 
