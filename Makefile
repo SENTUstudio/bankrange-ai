@@ -39,7 +39,7 @@ quality: ## Run all quality checks (format, lint, typecheck, test-cov)
 
 up: ## Start the full dockerized stack
 	docker-compose up -d --build
-	@echo "🚀 Stack is UP! API: http://localhost:8000, UI: http://localhost:8501, Kafka UI: http://localhost:8080"
+	@echo "🚀 Stack is UP! API: http://localhost:8000, UI: http://localhost:8080, Kafka UI: http://localhost:8081"
 
 down: ## Stop the stack & wipe volumes
 	docker-compose down -v
@@ -51,8 +51,8 @@ logs: ## Follow the logs of the Docker infrastructure
 run-api: ## Start the C&C FastAPI Engine Background Loop (local)
 	uv run uvicorn adapters.inbound.api.app:app --host 0.0.0.0 --port 8000
 
-run-ui: ## Start the Streamlit Control Panel Interface (local)
-	uv run streamlit run adapters/inbound/ui/dashboard.py
+run-ui: ## Serve the built static UI locally (requires build-ui first)
+	cd ui && npx serve build
 
 dev-ui: ## Start SvelteKit dev server
 	cd ui && npm run dev
