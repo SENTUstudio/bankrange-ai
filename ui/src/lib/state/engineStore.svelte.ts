@@ -7,11 +7,13 @@ export const engineState = $state<{
   multiplier: number;
   estimatedEPS: number;
   totalWorkstations: number;
+  sseConnected: boolean;
 }>({
   status: 'stopped',
   multiplier: 1.0,
   estimatedEPS: 0,
   totalWorkstations: 0,
+  sseConnected: true,
 });
 
 export function updateEngineState(payload: EngineStatus) {

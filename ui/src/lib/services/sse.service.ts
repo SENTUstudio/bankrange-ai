@@ -1,7 +1,5 @@
+import { engineState, updateEngineState } from '$lib/state/engineStore.svelte';
 import type { EngineStatus } from '$lib/types/engine';
-
-export type SseMessageHandler = (data: EngineStatus) => void;
-export type SseConnectionHandler = (connected: boolean) => void;
 
 const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:8000/events/stream';
 const INITIAL_RETRY_MS = 3000;
@@ -11,18 +9,9 @@ class SseService {
   private es: EventSource | null = null;
   private retryMs = INITIAL_RETRY_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private _onMessage: SseMessageHandler | null = null;
-  private _onConnectionChange: SseConnectionHandler | null = null;
 
-  connect(
-    onMessage: SseMessageHandler,
-    onConnectionChange?: SseConnectionHandler
-  ) {
+  connect() {
     if (this.es) return; // Already connected
-
-    this._onMessage = onMessage;
-    this._onConnectionChange = onConnectionChange || null;
-
     this._open();
   }
 
@@ -32,31 +21,32 @@ class SseService {
 
       this.es.onopen = () => {
         this.retryMs = INITIAL_RETRY_MS;
-        this._onConnectionChange?.(true);
+        engineState.sseConnected = true;
       };
 
       this.es.onmessage = (event) => {
         if (event.data.trim() === '') return; // Heartbeat or empty
         try {
           const payload: EngineStatus = JSON.parse(event.data);
-          this._onMessage?.(payload);
+          updateEngineState(payload);
         } catch (err) {
           console.warn('[SSE] Failed to parse message:', err);
         }
       };
 
       this.es.onerror = () => {
-        this._onConnectionChange?.(false);
+        engineState.sseConnected = false;
         this._scheduleReconnect();
       };
     } catch (err) {
       console.error('[SSE] Failed to create EventSource:', err);
+      engineState.sseConnected = false;
       this._scheduleReconnect();
     }
   }
 
   private _scheduleReconnect() {
-    this._close(false);
+    this._close();
 
     if (this.reconnectTimer) return;
 
@@ -70,25 +60,22 @@ class SseService {
   }
 
   disconnect() {
-    this._close(true);
+    this._close();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
     this.retryMs = INITIAL_RETRY_MS;
+    engineState.sseConnected = false;
   }
 
-  private _close(clearCallbacks: boolean) {
+  private _close() {
     if (this.es) {
       this.es.onopen = null;
       this.es.onmessage = null;
       this.es.onerror = null;
       this.es.close();
       this.es = null;
-    }
-    if (clearCallbacks) {
-      this._onMessage = null;
-      this._onConnectionChange = null;
     }
   }
 

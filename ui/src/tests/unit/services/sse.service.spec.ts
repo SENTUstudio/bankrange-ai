@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sseService } from '$lib/services/sse.service';
+import { engineState, updateEngineState } from '$lib/state/engineStore.svelte';
+
+vi.mock('$lib/state/engineStore.svelte', () => ({
+  engineState: { sseConnected: true, status: 'stopped', multiplier: 1, estimatedEPS: 0, totalWorkstations: 0 },
+  updateEngineState: vi.fn(),
+}));
 
 describe('sse.service', () => {
   let mockES: any;
@@ -14,6 +20,7 @@ describe('sse.service', () => {
     };
     globalThis.EventSource = vi.fn(() => mockES) as any;
     sseService.disconnect();
+    vi.mocked(updateEngineState).mockClear();
   });
 
   afterEach(() => {
@@ -21,35 +28,39 @@ describe('sse.service', () => {
   });
 
   it('should create EventSource on connect', () => {
-    const onMessage = vi.fn();
-    sseService.connect(onMessage);
+    sseService.connect();
     expect(EventSource).toHaveBeenCalled();
   });
 
-  it('should parse and forward messages', () => {
-    const onMessage = vi.fn();
-    sseService.connect(onMessage);
+  it('should parse and update engineState on message', () => {
+    sseService.connect();
     mockES.onmessage({ data: JSON.stringify({ status: 'running', current_multiplier: 1, estimated_eps: 5, total_workstations: 10 }) });
-    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ status: 'running' }));
+    expect(updateEngineState).toHaveBeenCalledWith(expect.objectContaining({ status: 'running' }));
   });
 
   it('should ignore empty data', () => {
-    const onMessage = vi.fn();
-    sseService.connect(onMessage);
+    sseService.connect();
     mockES.onmessage({ data: '   ' });
-    expect(onMessage).not.toHaveBeenCalled();
+    expect(updateEngineState).not.toHaveBeenCalled();
   });
 
-  it('should call connection change handler', () => {
-    const onConn = vi.fn();
-    sseService.connect(vi.fn(), onConn);
+  it('should update engineState.sseConnected on open', () => {
+    engineState.sseConnected = false;
+    sseService.connect();
     mockES.onopen();
-    expect(onConn).toHaveBeenCalledWith(true);
+    expect(engineState.sseConnected).toBe(true);
+  });
+
+  it('should update engineState.sseConnected on error', () => {
+    engineState.sseConnected = true;
+    sseService.connect();
+    mockES.onerror();
+    expect(engineState.sseConnected).toBe(false);
   });
 
   it('should reconnect on error with backoff', () => {
     vi.useFakeTimers();
-    sseService.connect(vi.fn());
+    sseService.connect();
     mockES.onerror();
     expect(mockES.close).toHaveBeenCalled();
     vi.advanceTimersByTime(3000);
@@ -58,7 +69,7 @@ describe('sse.service', () => {
 
   it('should cap backoff at 30s', () => {
     vi.useFakeTimers();
-    sseService.connect(vi.fn());
+    sseService.connect();
     // Trigger multiple errors
     for (let i = 0; i < 10; i++) {
       mockES.onerror();
