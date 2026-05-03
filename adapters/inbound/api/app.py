@@ -5,18 +5,25 @@ and exposes REST endpoints to manipulate it in real-time.
 """
 
 import asyncio
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from adapters.inbound.api.topology_mapper import (
+    _to_branch_detail,
+    _to_branch_summary,
+    _to_network_graph,
+)
 from adapters.outbound.kafka_publisher import KafkaEventPublisher
 from core.domain.temporal import BANK_WORKDAY_PROFILE
 from core.domain.topology_factory import TopologyFactory
@@ -233,3 +240,81 @@ async def control_engine(req: ControlRequest) -> dict[str, Any]:
         "message": "Success",
         "new_multiplier": req.eps_multiplier,
     }
+
+
+# ---------------------------------------------------------------------------
+# Topology Endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/topology/branches")
+async def list_branches() -> list[dict]:
+    """Return all branches with coordinates and summary stats."""
+    engine = app.state.engine
+    generator = engine._generator
+    if not generator:
+        return []
+    return [_to_branch_summary(b) for b in generator.branches]
+
+
+@app.get("/topology/branches/{branch_code}")
+async def get_branch(branch_code: str) -> dict:
+    """Return full branch detail including segments and workstations."""
+    engine = app.state.engine
+    generator = engine._generator
+    if not generator:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    for branch in generator.branches:
+        if branch.code == branch_code:
+            return _to_branch_detail(branch)
+
+    raise HTTPException(status_code=404, detail="Branch not found")
+
+
+@app.get("/topology/branches/{branch_code}/network")
+async def get_branch_network(branch_code: str) -> dict:
+    """Return graph nodes and edges for D3-force rendering."""
+    engine = app.state.engine
+    generator = engine._generator
+    if not generator:
+        raise HTTPException(status_code=404, detail="Branch not found")
+
+    for branch in generator.branches:
+        if branch.code == branch_code:
+            return _to_network_graph(branch)
+
+    raise HTTPException(status_code=404, detail="Branch not found")
+
+
+# ---------------------------------------------------------------------------
+# SSE Endpoint
+# ---------------------------------------------------------------------------
+
+
+async def _sse_generator():
+    """Async generator yielding SSE-formatted engine state updates."""
+    engine = app.state.engine
+    while True:
+        payload = {
+            "status": "running" if engine.is_running else "stopped",
+            "current_multiplier": engine.multiplier_override,
+            "estimated_eps": engine.estimated_eps,
+            "total_workstations": engine.total_workstations,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        yield f"data: {json.dumps(payload)}\n\n"
+        await asyncio.sleep(1)
+
+
+@app.get("/events/stream")
+async def event_stream() -> StreamingResponse:
+    """SSE stream of engine state updates (1 Hz)."""
+    return StreamingResponse(
+        _sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )

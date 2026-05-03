@@ -73,6 +73,11 @@ class EventGenerator:
                 self._workstation_registry.append((ws, branch.code))
 
     @property
+    def branches(self) -> list[Branch]:
+        """The bank topology branches."""
+        return self._branches
+
+    @property
     def total_workstations(self) -> int:
         """Total number of workstations in the topology."""
         return len(self._workstation_registry)
