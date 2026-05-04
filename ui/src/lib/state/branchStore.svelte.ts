@@ -41,3 +41,29 @@ export function deselectBranch() {
   appState.selectedBranchId = null;
   appState.zoomLevel = 'country';
 }
+
+/** Arc data for Deck.gl ArcLayer — connects each branch to the Central hub (Buenos Aires / SUC001). */
+export interface ArcConnection {
+  source: [number, number];
+  target: [number, number];
+  sourceBranch: BranchSummary;
+  targetBranch: BranchSummary;
+}
+
+export function getArcData(): ArcConnection[] {
+  const list = Array.from(branches.values());
+  if (list.length === 0) return [];
+
+  // Central hub: Buenos Aires branch (SUC001) or first available
+  const central = list.find((b) => b.city === 'Buenos Aires') ?? list[0];
+  const target: [number, number] = [central.coordinates.lng, central.coordinates.lat];
+
+  return list
+    .filter((b) => b.code !== central.code)
+    .map((b) => ({
+      source: [b.coordinates.lng, b.coordinates.lat] as [number, number],
+      target,
+      sourceBranch: b,
+      targetBranch: central,
+    }));
+}

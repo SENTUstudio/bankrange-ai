@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appState, resetMapTransform } from '$lib/state/appState.svelte';
+import { appState, setMapReady } from '$lib/state/appState.svelte';
 
 describe('appState store', () => {
   it('should default to boot phase', () => {
@@ -14,9 +14,14 @@ describe('appState store', () => {
     expect(appState.selectedBranchId).toBeNull();
   });
 
-  it('should reset map transform', () => {
-    appState.mapTransform = { x: 100, y: 200, scale: 3 };
-    resetMapTransform();
-    expect(appState.mapTransform).toEqual({ x: 0, y: 0, scale: 1 });
+  it('should default mapReady to false', () => {
+    expect(appState.mapReady).toBe(false);
+  });
+
+  it('should set map ready', () => {
+    setMapReady(true);
+    expect(appState.mapReady).toBe(true);
+    setMapReady(false);
+    expect(appState.mapReady).toBe(false);
   });
 });

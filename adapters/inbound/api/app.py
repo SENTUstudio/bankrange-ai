@@ -159,7 +159,7 @@ def _start_background_engine(engine_state: EngineState) -> None:
 
     publisher = KafkaEventPublisher(
         bootstrap_servers=kafka_brokers,
-        topic="bankrange-raw-windows",  # Dummy default, dynamic used
+        topic_prefix="bankrange-raw",  # Dynamic routing per OS
     )
 
     config = create_topology_config(

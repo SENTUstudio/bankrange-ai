@@ -44,3 +44,15 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ─── MapLibre canvas sizing ─── */
+.maplibregl-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Map container z-index layering ─── */
+/* Map sits at z-0; DOM overlays (controls, detail) stay above at z-30+ */
