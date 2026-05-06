@@ -2,6 +2,8 @@
   import { appState } from '$lib/state/appState.svelte';
 
   const bootLines = [
+    { text: '█▀ █▀▀ █▄░█ ▀█▀ █░█  ┎┤  Ingeniería de Datos & Data Science  ├┒', color: '#00ff88' },
+    { text: '▄█ ██▄ █░▀█ ░█░ █▄█  ┖┤              en Python               ├┚', color: '#00ff88' },
     { text: '> INITIALIZING BANKRANGE TACTICAL MAP...', color: '#00ff88' },
     { text: '> LOADING TOPOLOGY COORDINATES...', color: '#00ccff' },
     { text: '> ESTABLISHING SECURE UPLINK...', color: '#00ccff' },
@@ -66,12 +68,6 @@
   <div class="boot-content">
     <div class="header">
       <div class="title">BANKRANGE TACTICAL CONSOLE</div>
-      <div class="tagline">
-        █▀ █▀▀ █▄░█ ▀█▀ █░█  ┎┤  Ingeniería de Datos &amp; Data Science  ├┒
-      </div>
-      <div class="tagline">
-        ▄█ ██▄ █░▀█ ░█░ █▄█  ┖┤              en Python               ├┚
-      </div>
       <div class="version">OS v2.4.1 // SECURE TERMINAL</div>
     </div>
     
@@ -166,16 +162,6 @@
     color: #666;
     font-size: 0.75rem;
     letter-spacing: 2px;
-    margin-top: 1rem;
-  }
-  
-  .tagline {
-    color: #00ff88;
-    font-size: 0.65rem;
-    font-family: 'Courier New', 'JetBrains Mono', monospace;
-    letter-spacing: 1px;
-    line-height: 1.6;
-    text-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
   }
   
   .terminal {
