@@ -43,8 +43,9 @@ logger = logging.getLogger("BankRange-API")
 class EngineState:
     """Holds state shared between the API endpoints and background loop."""
 
-    is_running: bool = False
-    multiplier_override: float = 1.0
+    is_running: bool = True
+    deployed: bool = False
+    multiplier_override: float = 0.0
     estimated_eps: float = 0.0
     total_workstations: int = 0
 
@@ -94,6 +95,7 @@ async def _run_engine_loop(engine_state: EngineState) -> None:
 
     if not generator or not publisher:
         logger.error("Engine missing components. Aborting loop.")
+        engine_state.is_running = False
         return
 
     import time
@@ -104,29 +106,32 @@ async def _run_engine_loop(engine_state: EngineState) -> None:
 
     try:
         while engine_state.is_running:
-            loop_start = time.time()
-            sim_time = datetime.now(UTC)
+            if engine_state.deployed:
+                loop_start = time.time()
+                sim_time = datetime.now(UTC)
 
-            # Important: we inject the dynamic scale before generating
-            base_multi = BANK_WORKDAY_PROFILE.get_multiplier(sim_time)
-            effective_multi = base_multi * engine_state.multiplier_override
+                # Important: we inject the dynamic scale before generating
+                base_multi = BANK_WORKDAY_PROFILE.get_multiplier(sim_time)
+                effective_multi = base_multi * engine_state.multiplier_override
 
-            generator.set_scale_multiplier(effective_multi)
+                generator.set_scale_multiplier(effective_multi)
 
-            # Generate and publish
-            generator.generate_tick(sim_time)
-            ticks += 1
+                # Generate and publish
+                generator.generate_tick(sim_time)
+                ticks += 1
 
-            # Update estimated EPS with EMA smoothing
-            raw_eps = generator.estimated_eps(sim_time)
-            engine_state.estimated_eps = _compute_ema_eps(
-                engine_state.estimated_eps, raw_eps
-            )
+                # Update estimated EPS with EMA smoothing
+                raw_eps = generator.estimated_eps(sim_time)
+                engine_state.estimated_eps = _compute_ema_eps(
+                    engine_state.estimated_eps, raw_eps
+                )
 
-            # Maintain realtime pacing without blocking asyncio thread
-            processing_time = time.time() - loop_start
-            sleep_time = max(0.01, 1.0 - processing_time)  # Wait 1s max
-            await asyncio.sleep(sleep_time)
+                # Maintain realtime pacing without blocking asyncio thread
+                processing_time = time.time() - loop_start
+                sleep_time = max(0.01, 1.0 - processing_time)  # Wait 1s max
+                await asyncio.sleep(sleep_time)
+            else:
+                await asyncio.sleep(1)  # idle when stopped
 
     except asyncio.CancelledError:
         logger.info("Engine Loop cancelled via application shutdown.")
@@ -223,7 +228,7 @@ async def get_status() -> dict[str, Any]:
     """Retrieve the real-time operational status of the simulator."""
     engine_state = app.state.engine
     return {
-        "status": "running" if engine_state.is_running else "stopped",
+        "status": "running" if engine_state.deployed else "stopped",
         "current_multiplier": engine_state.multiplier_override,
         "estimated_eps": engine_state.estimated_eps,
         "total_workstations": engine_state.total_workstations,
@@ -233,12 +238,24 @@ async def get_status() -> dict[str, Any]:
 @app.post("/control")
 async def control_engine(req: ControlRequest) -> dict[str, Any]:
     """Manipulate the volume of the synthetic traffic."""
-    app.state.engine.multiplier_override = req.eps_multiplier
-    logger.info(f"Engine scale updated by API -> {req.eps_multiplier}x")
+    engine_state = app.state.engine
+    if req.eps_multiplier > 0:
+        engine_state.deployed = True
+        engine_state.multiplier_override = req.eps_multiplier
+        logger.info(f"Engine deployed by API -> {req.eps_multiplier}x")
+        message = "Engine deployed"
+    else:
+        engine_state.deployed = False
+        engine_state.multiplier_override = 0.0
+        logger.info("Engine stopped by API")
+        message = "Engine stopped"
+
+    if engine_state._generator:
+        engine_state._generator.set_scale_multiplier(engine_state.multiplier_override)
 
     return {
-        "message": "Success",
-        "new_multiplier": req.eps_multiplier,
+        "message": message,
+        "new_multiplier": engine_state.multiplier_override,
     }
 
 
@@ -298,20 +315,20 @@ async def _sse_generator():
     heartbeat_counter = 0
     while True:
         payload = {
-            "status": "running" if engine.is_running else "stopped",
+            "status": "running" if engine.deployed else "stopped",
             "current_multiplier": engine.multiplier_override,
             "estimated_eps": engine.estimated_eps,
             "total_workstations": engine.total_workstations,
             "timestamp": datetime.now(UTC).isoformat(),
         }
         yield f"data: {json.dumps(payload)}\n\n"
-        
+
         # Heartbeat every 15 seconds to keep proxies alive
         heartbeat_counter += 1
         if heartbeat_counter >= 15:
             yield ":heartbeat\n\n"
             heartbeat_counter = 0
-            
+
         await asyncio.sleep(1)
 
 

@@ -18,7 +18,8 @@ def client(monkeypatch):
         # Inject a fresh test state after lifespan startup
         app_module.app.state.engine = EngineState(
             is_running=True,
-            multiplier_override=1.0,
+            deployed=False,
+            multiplier_override=0.0,
             estimated_eps=0.0,
             total_workstations=100,
         )
@@ -30,8 +31,8 @@ class TestEngineState:
         """Instance mutation must not leak to other instances."""
         state_a = EngineState()
         state_b = EngineState()
-        state_a.is_running = True
-        assert state_b.is_running is False
+        state_a.deployed = True
+        assert state_b.deployed is False
 
 
 class TestEmaEps:
@@ -67,9 +68,27 @@ class TestEmaEps:
 
 
 class TestFastAPIApp:
-    def test_status_endpoint_returns_engine_metadata(self, client) -> None:
-        """GET /status should return 200 with engine metrics."""
+    def test_status_endpoint_returns_stopped_when_not_deployed(self, client) -> None:
+        """GET /status should return 'stopped' when engine is not deployed."""
         engine = app_module.app.state.engine
+        engine.deployed = False
+        engine.multiplier_override = 0.0
+        engine.estimated_eps = 0.0
+        engine.total_workstations = 500
+
+        response = client.get("/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "stopped"
+        assert data["current_multiplier"] == 0.0
+        assert data["estimated_eps"] == 0.0
+        assert data["total_workstations"] == 500
+
+    def test_status_endpoint_returns_running_when_deployed(self, client) -> None:
+        """GET /status should return 'running' when engine is deployed."""
+        engine = app_module.app.state.engine
+        engine.deployed = True
         engine.multiplier_override = 2.5
         engine.estimated_eps = 4500.5
         engine.total_workstations = 500
@@ -83,31 +102,51 @@ class TestFastAPIApp:
         assert data["estimated_eps"] == 4500.5
         assert data["total_workstations"] == 500
 
-    def test_control_endpoint_updates_multiplier(self, client) -> None:
-        """POST /control should change the injected state multiplier."""
+    def test_control_endpoint_deploys_engine(self, client) -> None:
+        """POST /control with eps_multiplier > 0 should deploy the engine."""
         engine = app_module.app.state.engine
-        assert engine.multiplier_override == 1.0
+        engine.deployed = False
+        engine.multiplier_override = 0.0
 
         response = client.post("/control", json={"eps_multiplier": 5.0})
 
         assert response.status_code == 200
         data = response.json()
-        assert data["message"] == "Success"
+        assert data["message"] == "Engine deployed"
         assert data["new_multiplier"] == 5.0
 
         # Verify the memory state actually changed
+        assert engine.deployed is True
         assert engine.multiplier_override == 5.0
+
+    def test_control_endpoint_stops_engine(self, client) -> None:
+        """POST /control with eps_multiplier == 0 should stop the engine."""
+        engine = app_module.app.state.engine
+        engine.deployed = True
+        engine.multiplier_override = 5.0
+
+        response = client.post("/control", json={"eps_multiplier": 0.0})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Engine stopped"
+        assert data["new_multiplier"] == 0.0
+
+        # Verify the memory state actually changed
+        assert engine.deployed is False
+        assert engine.multiplier_override == 0.0
 
     def test_control_endpoint_rejects_negative_multiplier(self, client) -> None:
         """Input validation: negative EPS multipliers are impossible."""
         engine = app_module.app.state.engine
+        engine.multiplier_override = 2.0
         response = client.post("/control", json={"eps_multiplier": -1.5})
 
         # 422 Unprocessable Entity generated natively by Pydantic/FastAPI
         assert response.status_code == 422
 
         # State should remain untouched
-        assert engine.multiplier_override == 1.0
+        assert engine.multiplier_override == 2.0
 
     def test_cors_rejects_untrusted_origin(self, client) -> None:
         """Untrusted origins must not receive CORS reflection headers."""
@@ -138,7 +177,7 @@ class TestFastAPIApp:
 
         monkeypatch.setattr(app_module, "_start_background_engine", lambda state: None)
         with TestClient(app_module.app) as test_client:
-            test_client.app.state.engine = EngineState(is_running=True, total_workstations=100)
+            test_client.app.state.engine = EngineState(is_running=True, deployed=False, multiplier_override=0.0, total_workstations=100)
 
             # First origin
             response = test_client.get("/status", headers={"Origin": "https://app.example.com"})
@@ -213,13 +252,13 @@ class TestTopologyEndpoints:
 
 
 class TestSseGenerator:
-    def test_sse_generator_yields_data(self) -> None:
-        """_sse_generator should yield SSE-formatted data."""
+    def test_sse_generator_yields_running_when_deployed(self) -> None:
+        """_sse_generator should yield 'running' when engine is deployed."""
         import asyncio
 
         from adapters.inbound.api.app import _sse_generator, EngineState
 
-        engine = EngineState(is_running=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
+        engine = EngineState(is_running=True, deployed=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
         app_module.app.state.engine = engine
 
         async def collect() -> list[str]:
@@ -235,13 +274,35 @@ class TestSseGenerator:
             assert chunk.startswith("data: ")
             assert "running" in chunk
 
+    def test_sse_generator_yields_stopped_when_not_deployed(self) -> None:
+        """_sse_generator should yield 'stopped' when engine is not deployed."""
+        import asyncio
+
+        from adapters.inbound.api.app import _sse_generator, EngineState
+
+        engine = EngineState(is_running=True, deployed=False, multiplier_override=0.0, estimated_eps=0.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        async def collect() -> list[str]:
+            chunks: list[str] = []
+            gen = _sse_generator()
+            for _ in range(3):
+                chunks.append(await gen.__anext__())
+            return chunks
+
+        chunks = asyncio.run(collect())
+        assert len(chunks) == 3
+        for chunk in chunks:
+            assert chunk.startswith("data: ")
+            assert "stopped" in chunk
+
     def test_sse_generator_heartbeat_every_15(self) -> None:
         """_sse_generator should yield a heartbeat every 15 iterations."""
         import asyncio
 
         from adapters.inbound.api.app import _sse_generator, EngineState
 
-        engine = EngineState(is_running=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
+        engine = EngineState(is_running=True, deployed=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
         app_module.app.state.engine = engine
 
         async def collect() -> list[str]:
@@ -265,6 +326,7 @@ class TestRunEngineLoop:
         state = EngineState()
         state._generator = None
         state._publisher = None
+        state.is_running = True
 
         asyncio.run(_run_engine_loop(state))
         assert state.is_running is False
@@ -288,6 +350,7 @@ class TestRunEngineLoop:
         state._generator = mock_generator
         state._publisher = mock_publisher
         state.is_running = True
+        state.deployed = True
 
         async def run_once() -> None:
             # Stop after first iteration
@@ -299,6 +362,72 @@ class TestRunEngineLoop:
 
         asyncio.run(run_once())
         assert state.is_running is False
+        mock_publisher.flush.assert_called_once_with(5.0)
+
+    def test_run_engine_loop_skips_generation_when_not_deployed(self) -> None:
+        """_run_engine_loop should skip generation when deployed=False."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from adapters.inbound.api.app import _run_engine_loop, EngineState
+
+        mock_generator = MagicMock()
+        mock_generator.estimated_eps.return_value = 100.0
+        mock_generator.generate_tick.return_value = []
+        mock_generator.set_scale_multiplier = MagicMock()
+
+        mock_publisher = MagicMock()
+        mock_publisher.flush = MagicMock()
+
+        state = EngineState()
+        state._generator = mock_generator
+        state._publisher = mock_publisher
+        state.is_running = True
+        state.deployed = False
+
+        async def run_once() -> None:
+            async def stop_after() -> None:
+                await asyncio.sleep(0.05)
+                state.is_running = False
+
+            await asyncio.gather(_run_engine_loop(state), stop_after())
+
+        asyncio.run(run_once())
+        assert state.is_running is False
+        mock_generator.generate_tick.assert_not_called()
+        mock_publisher.flush.assert_called_once_with(5.0)
+
+    def test_run_engine_loop_generates_when_deployed(self) -> None:
+        """_run_engine_loop should generate events when deployed=True."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from adapters.inbound.api.app import _run_engine_loop, EngineState
+
+        mock_generator = MagicMock()
+        mock_generator.estimated_eps.return_value = 100.0
+        mock_generator.generate_tick.return_value = []
+        mock_generator.set_scale_multiplier = MagicMock()
+
+        mock_publisher = MagicMock()
+        mock_publisher.flush = MagicMock()
+
+        state = EngineState()
+        state._generator = mock_generator
+        state._publisher = mock_publisher
+        state.is_running = True
+        state.deployed = True
+
+        async def run_once() -> None:
+            async def stop_after() -> None:
+                await asyncio.sleep(0.05)
+                state.is_running = False
+
+            await asyncio.gather(_run_engine_loop(state), stop_after())
+
+        asyncio.run(run_once())
+        assert state.is_running is False
+        mock_generator.generate_tick.assert_called()
         mock_publisher.flush.assert_called_once_with(5.0)
 
     def test_run_engine_loop_cancelled_error(self) -> None:
