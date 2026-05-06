@@ -1,9 +1,10 @@
+import { SvelteMap } from 'svelte/reactivity';
 import { getBranches, getBranchDetail } from '$lib/services/api.service';
 import type { BranchSummary, BranchDetail } from '$lib/types/topology';
 import { appState } from './appState.svelte';
 
-export const branches = $state<Map<string, BranchSummary>>(new Map());
-export const branchDetails = $state<Map<string, BranchDetail>>(new Map());
+export const branches = $state(new SvelteMap<string, BranchSummary>());
+export const branchDetails = $state(new SvelteMap<string, BranchDetail>());
 
 export function getSelectedBranch(): BranchDetail | null {
   return appState.selectedBranchId ? branchDetails.get(appState.selectedBranchId) ?? null : null;

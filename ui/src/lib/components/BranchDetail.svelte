@@ -5,12 +5,7 @@
   import NetworkGraph from './NetworkGraph.svelte';
   import type { BranchDetail as BranchDetailType } from '$lib/types/topology';
 
-  let branch = $state<BranchDetailType | null>(null);
-
-  // $effect properly tracks $state Map mutations (unlike $derived with async data)
-  $effect(() => {
-    branch = getSelectedBranch();
-  });
+  const branch = $derived(getSelectedBranch());
 
   const isOpen = $derived(appState.zoomLevel === 'branch' && branch !== null);
 </script>
