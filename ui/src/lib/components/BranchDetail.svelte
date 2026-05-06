@@ -10,17 +10,17 @@
 
 {#if isOpen && branch}
   <div
-    class="absolute top-0 right-0 bottom-0 z-30 w-96 border-l border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur transform transition-transform duration-300 ease-in-out"
+    class="absolute top-0 right-0 bottom-0 z-30 w-96 border-l border-border bg-panel-sidebar backdrop-blur transition-transform duration-300 ease-in-out"
     class:translate-x-0={isOpen}
     class:translate-x-full={!isOpen}
   >
     <div class="p-4 h-full overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-[var(--color-primary)] text-sm font-bold uppercase tracking-wider">
+        <h2 class="text-brand-cyan text-sm font-bold uppercase tracking-wider">
           {branch.name}
         </h2>
         <button
-          class="px-2 py-1 border border-[var(--color-border)] bg-[var(--color-panel)] text-[var(--color-text)] text-xs font-mono rounded hover:bg-[var(--color-border)] transition-colors"
+          class="px-2 py-1 border border-border bg-panel-hover text-content-primary text-xs font-mono rounded hover:bg-border transition-colors"
           onclick={deselectBranch}
         >
           ← Back
@@ -40,8 +40,8 @@
         />
       </div>
 
-      <div class="border border-[var(--color-border)] bg-[var(--color-panel)] rounded p-3">
-        <h3 class="text-[var(--color-primary)] text-xs font-bold uppercase tracking-wider mb-2">
+      <div class="border border-border bg-panel-sidebar rounded p-3">
+        <h3 class="text-brand-cyan text-xs font-bold uppercase tracking-wider mb-2">
           Network Topology
         </h3>
         <NetworkGraph code={branch.code} width={340} height={240} />

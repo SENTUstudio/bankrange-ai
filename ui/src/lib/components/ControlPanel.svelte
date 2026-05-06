@@ -24,18 +24,18 @@
   }
 </script>
 
-<div class="absolute bottom-4 right-4 z-[100] w-72 border border-[var(--color-border)] bg-[var(--color-panel)]/95 backdrop-blur rounded p-4">
+<div class="absolute bottom-4 right-4 z-[100] w-72 border border-border bg-panel-sidebar backdrop-blur rounded p-4">
   <div class="flex items-center justify-between mb-3">
-    <h3 class="text-[var(--color-primary)] text-xs font-bold uppercase tracking-wider">Controls</h3>
-    <span class="text-[10px] text-[var(--color-muted)] font-mono">v2.4</span>
+    <h3 class="text-brand-cyan text-xs font-bold uppercase tracking-wider">Controls</h3>
+    <span class="text-[10px] text-content-secondary font-mono">v2.4</span>
   </div>
 
   <div class="flex items-center gap-3 mb-4">
     <button
       class="flex-1 py-2 rounded text-xs font-bold uppercase tracking-wider transition-colors
         {engineState.status === 'running'
-          ? 'bg-[var(--color-alert)] text-white hover:bg-red-600'
-          : 'bg-[var(--color-success)] text-black hover:bg-green-400'}"
+          ? 'bg-brand-red text-white hover:bg-red-600'
+          : 'bg-brand-green text-black hover:bg-green-400'}"
       onclick={toggleDeploy}
     >
       {engineState.status === 'running' ? 'STOP' : 'DEPLOY'}
@@ -43,9 +43,9 @@
   </div>
 
   <div class="mb-3">
-    <div class="flex justify-between text-[10px] text-[var(--color-muted)] mb-1">
+    <div class="flex justify-between text-[10px] text-content-secondary mb-1">
       <span>EPS Multiplier</span>
-      <span class="font-mono text-[var(--color-text)]">{sliderVal.toFixed(1)}x</span>
+      <span class="font-mono text-content-primary">{sliderVal.toFixed(1)}x</span>
     </div>
     <input
       type="range"
@@ -54,12 +54,12 @@
       step="0.1"
       value={sliderVal}
       oninput={handleSliderChange}
-      class="w-full h-1 bg-[var(--color-border)] rounded-lg appearance-none cursor-pointer accent-[var(--color-primary)]"
+      class="w-full h-1 bg-border rounded-lg appearance-none cursor-pointer accent-brand-cyan"
     />
   </div>
 
   {#if appState.lastError}
-    <div class="mt-3 text-[var(--color-alert)] text-[10px] font-mono truncate">
+    <div class="mt-3 text-brand-red text-[10px] font-mono truncate">
       ERR: {appState.lastError}
     </div>
   {/if}

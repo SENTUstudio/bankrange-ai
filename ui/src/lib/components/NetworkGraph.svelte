@@ -45,11 +45,11 @@
 
 <div class="relative w-full" style="height: {height}px;">
   {#if loading}
-    <div class="absolute inset-0 flex items-center justify-center text-[var(--color-muted)] text-xs font-mono">
+    <div class="absolute inset-0 flex items-center justify-center text-content-secondary text-xs font-mono">
       LOADING NETWORK...
     </div>
   {:else if error}
-    <div class="absolute inset-0 flex items-center justify-center text-[var(--color-alert)] text-xs font-mono">
+    <div class="absolute inset-0 flex items-center justify-center text-brand-red text-xs font-mono">
       ERR: {error}
     </div>
   {:else}
