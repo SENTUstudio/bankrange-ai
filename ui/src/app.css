@@ -1,21 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* ─── Core Palette ─── */
   --bg-primary: #050505;
   --bg-panel: #0c0c12;
+  --bg-panel-rgb: 12, 12, 18;
   --bg-panel-hover: #11111a;
   --border-color: #1e1e2e;
   --border-glow: #2d2d44;
   
   /* ─── Neon Alerts ─── */
   --alert-red: #ff3333;
+  --alert-red-rgb: 255, 51, 51;
   --alert-red-glow: rgba(255, 51, 51, 0.4);
   --alert-orange: #ff8800;
+  --alert-orange-rgb: 255, 136, 0;
   --alert-orange-glow: rgba(255, 136, 0, 0.4);
   --alert-green: #00ff88;
+  --alert-green-rgb: 0, 255, 136;
   --alert-green-glow: rgba(0, 255, 136, 0.4);
   
   /* ─── Cyber Cyan ─── */
   --cyan: #00ccff;
+  --cyan-rgb: 0, 204, 255;
+  --cyan-10: rgba(0, 204, 255, 0.1);
+  --cyan-20: rgba(0, 204, 255, 0.2);
   --cyan-glow: rgba(0, 204, 255, 0.3);
   --cyan-dim: #006688;
   
@@ -335,11 +346,4 @@ body::before {
 
 /* Map container z-index layering */
 /* Map sits at z-0; DOM overlays (controls, detail) stay above at z-30+ */
-
-/* ─── Layout Shell ─── */
-.main-content {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
+/* Layout shell moved to Tailwind: relative flex-1 min-w-0 overflow-hidden */

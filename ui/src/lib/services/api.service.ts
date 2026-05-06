@@ -1,7 +1,7 @@
 import type { BranchSummary, BranchDetail, NetworkGraph } from '$lib/types/topology';
 import type { EngineStatus, ControlRequest, ControlResponse } from '$lib/types/engine';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiError extends Error {
   constructor(

@@ -7,7 +7,7 @@
 </script>
 
 <nav class="flex flex-col gap-1">
-  <div class="text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)] mb-2 px-3">
+  <div class="text-[10px] font-bold uppercase tracking-widest text-content-dim mb-2 px-3">
     Navigation
   </div>
   {#each navItems as item}
@@ -16,8 +16,8 @@
       target="_self"
       class="px-3 py-2 rounded text-xs font-mono uppercase tracking-wider transition-colors
         {item.active
-          ? 'text-[var(--cyan)] bg-[var(--cyan)]/10 border border-[var(--cyan)]/20'
-          : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel-hover)]'}"
+          ? 'text-brand-cyan bg-brand-cyan-10 border border-brand-cyan-20'
+          : 'text-content-secondary hover:text-content-primary hover:bg-panel-hover'}"
     >
       {item.label}
     </a>

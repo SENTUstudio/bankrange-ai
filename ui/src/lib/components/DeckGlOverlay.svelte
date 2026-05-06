@@ -2,11 +2,16 @@
   import { onMount, onDestroy } from 'svelte';
   import { MapboxOverlay } from '@deck.gl/mapbox';
   import { ScatterplotLayer, ArcLayer, TextLayer } from '@deck.gl/layers';
-  import { getMapContext } from 'svelte-maplibre-gl';
   import { branches, getArcData, selectBranch, deselectBranch } from '$lib/state/branchStore.svelte';
+  import { getTextLayerCharacterSet } from '$lib/utils/deckgl-charset';
   import type { BranchSummary } from '$lib/types/topology';
+  import type maplibregl from 'maplibre-gl';
 
-  const mapCtx = getMapContext();
+  interface Props {
+    mapInstance: maplibregl.Map;
+  }
+
+  let { mapInstance }: Props = $props();
   let overlay: MapboxOverlay | null = null;
 
   const STATUS_COLORS: Record<string, [number, number, number]> = {
@@ -18,6 +23,12 @@
   function createLayers() {
     const list = Array.from(branches.values());
     const arcs = getArcData();
+    const charset = getTextLayerCharacterSet();
+    console.log('[DeckGlOverlay] createLayers called, branches:', list.length);
+    console.log('[DeckGlOverlay] Cities:', list.map(b => b.city));
+    console.log('[DeckGlOverlay] characterSet length:', charset.length);
+    console.log('[DeckGlOverlay] characterSet includes ó:', charset.includes('ó'));
+    console.log('[DeckGlOverlay] characterSet includes á:', charset.includes('á'));
 
     return [
       new ArcLayer<ReturnType<typeof getArcData>[number]>({
@@ -53,8 +64,8 @@
           }
         },
         onHover: ({ object }) => {
-          if (mapCtx.map) {
-            mapCtx.map.getCanvas().style.cursor = object ? 'pointer' : '';
+          if (mapInstance) {
+            mapInstance.getCanvas().style.cursor = object ? 'pointer' : '';
           }
         },
       }),
@@ -72,14 +83,40 @@
         pickable: false,
         fontFamily: '"JetBrains Mono", monospace',
         fontSettings: {
-          sdf: true,
+          sdf: false,
+        },
+        characterSet: charset,
+        onDataLoad: () => console.log('[DeckGlOverlay] TextLayer data loaded'),
+        onAfterRender: () => {
+          // Check if text elements exist in deck canvas
+          const canvas = document.querySelector('.deckgl-overlay canvas') || document.querySelector('canvas');
+          if (canvas) {
+            const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+            console.log('[DeckGlOverlay] Canvas size:', canvas.width, 'x', canvas.height);
+            console.log('[DeckGlOverlay] WebGL context:', !!gl);
+          }
+          console.log('[DeckGlOverlay] Labels rendered for cities:', list.map(b => b.city));
         },
       }),
     ];
   }
 
   onMount(() => {
-    if (!mapCtx.map) return;
+    if (!mapInstance) {
+      console.log('[DeckGlOverlay] onMount skipped - no mapInstance');
+      return;
+    }
+
+    console.log('[DeckGlOverlay] onMount starting, mapInstance:', !!mapInstance);
+
+    // Font diagnostic: test if canvas can render accents with JetBrains Mono
+    const canvas = document.createElement('canvas');
+    canvas.width = 200; canvas.height = 50;
+    const ctx = canvas.getContext('2d')!;
+    ctx.font = '14px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('Córdoba Tucumán', 10, 30);
+    console.log('[DeckGlOverlay] Canvas font test - dataURL:', canvas.toDataURL().substring(0, 100));
 
     overlay = new MapboxOverlay({
       layers: [],
@@ -105,13 +142,15 @@
       },
     });
 
-    mapCtx.map.addControl(overlay);
-    overlay.setProps({ layers: createLayers() });
+    mapInstance.addControl(overlay);
+    const layers = createLayers();
+    console.log('[DeckGlOverlay] Setting layers:', layers.map(l => l.id));
+    overlay.setProps({ layers });
   });
 
   onDestroy(() => {
-    if (overlay && mapCtx.map) {
-      mapCtx.map.removeControl(overlay);
+    if (overlay && mapInstance) {
+      mapInstance.removeControl(overlay);
       overlay = null;
     }
   });

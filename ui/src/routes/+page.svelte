@@ -23,7 +23,7 @@
   <BootSequence />
 {:else}
   <DashboardSidebar />
-  <div class="main-content">
+  <div class="relative flex-1 min-w-0 overflow-hidden">
     <MapView />
     <ControlPanel />
     <BranchDetail />

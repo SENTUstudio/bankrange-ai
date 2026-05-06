@@ -6,12 +6,11 @@
 </script>
 
 <aside
-  class="flex flex-col gap-6 shrink-0 border-r border-[var(--border-color)] bg-[var(--bg-panel)] overflow-y-auto isolate"
-  style="width: var(--sidebar-width);"
+  class="flex flex-col gap-6 shrink-0 w-sidebar border-r border-border bg-panel-sidebar overflow-y-auto"
 >
   <div class="px-3 pt-4">
-    <div class="text-xs font-bold uppercase tracking-widest text-[var(--cyan)] mb-1">BankRange</div>
-    <div class="text-[10px] font-mono text-[var(--text-dim)]">Tactical Console v2.4</div>
+    <div class="text-xs font-bold uppercase tracking-widest text-brand-cyan mb-1">BankRange</div>
+    <div class="text-[10px] font-mono text-content-dim">Tactical Console v2.4</div>
   </div>
 
   <SidebarNav />
@@ -20,8 +19,8 @@
   <SidebarExternalLinks />
 
   <div class="mt-auto px-3 pb-4">
-    <div class="h-px bg-[var(--border-color)] mb-3"></div>
-    <div class="text-[10px] font-mono text-[var(--text-dim)]">
+    <div class="h-px bg-border mb-3"></div>
+    <div class="text-[10px] font-mono text-content-dim">
       © 2026 BankRange AI
     </div>
   </div>

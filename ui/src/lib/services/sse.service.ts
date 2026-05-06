@@ -1,7 +1,7 @@
 import { engineState, updateEngineState } from '$lib/state/engineStore.svelte';
 import type { EngineStatus } from '$lib/types/engine';
 
-const SSE_URL = import.meta.env.VITE_SSE_URL || 'http://localhost:8000/events/stream';
+const SSE_URL = import.meta.env.VITE_SSE_URL || '/events/stream';
 const INITIAL_RETRY_MS = 3000;
 const MAX_RETRY_MS = 30000;
 

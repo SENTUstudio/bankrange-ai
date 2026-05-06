@@ -5,8 +5,121 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
+    <style>
+      /* Critical CSS fallback */
+      body {
+        margin: 0;
+        background: #050505;
+        color: #e0e0e0;
+        font-family: monospace;
+      }
+      #svelte-fallback {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #050505;
+        z-index: 99999;
+        transition: opacity 0.4s ease-out;
+      }
+      #svelte-fallback.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #svelte-fallback h1 {
+        color: #00ccff;
+        text-shadow: 0 0 10px rgba(0,204,255,0.3);
+        font-size: 18px;
+        letter-spacing: 2px;
+      }
+      #svelte-fallback .loading {
+        margin-top: 20px;
+        color: #8a8aaa;
+        font-size: 12px;
+      }
+      #svelte-fallback .error {
+        margin-top: 20px;
+        color: #ff3333;
+        font-size: 11px;
+        max-width: 400px;
+        text-align: center;
+      }
+    </style>
   </head>
   <body data-sveltekit-preload-data="hover">
+    <div id="svelte-fallback">
+      <h1>BANKRANGE TACTICAL CONSOLE</h1>
+      <div class="loading">Initializing systems...</div>
+      <div class="error" id="js-error" style="display:none"></div>
+    </div>
     <div style="display: contents">%sveltekit.body%</div>
+    <script>
+      function hideFallback() {
+        var fallback = document.getElementById('svelte-fallback');
+        if (!fallback || fallback.classList.contains('fade-out')) return;
+        fallback.classList.add('fade-out');
+        setTimeout(function() {
+          fallback.style.display = 'none';
+        }, 400);
+      }
+
+      function readyToShow() {
+        // Wait for browser to paint with styles applied
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            setTimeout(hideFallback, 300);
+          });
+        });
+      }
+
+      function checkReady() {
+        var svelteBody = document.querySelector('[data-sveltekit-preload-data] > div:not(#svelte-fallback)');
+        if (svelteBody && svelteBody.children.length > 0) {
+          readyToShow();
+          return true;
+        }
+        return false;
+      }
+
+      if (!checkReady()) {
+        var interval = setInterval(function() {
+          if (checkReady()) clearInterval(interval);
+        }, 200);
+
+        setTimeout(function() {
+          clearInterval(interval);
+          var fallback = document.getElementById('svelte-fallback');
+          if (fallback && !fallback.classList.contains('fade-out')) {
+            var errDiv = document.getElementById('js-error');
+            if (errDiv) {
+              errDiv.style.display = 'block';
+              errDiv.textContent = 'Application is taking longer than expected to load. If this persists, check console for errors.';
+            }
+          }
+        }, 30000);
+      }
+
+      window.addEventListener('sveltekit:start', function() {
+        readyToShow();
+      });
+
+      window.addEventListener('error', function(e) {
+        var errDiv = document.getElementById('js-error');
+        if (errDiv) {
+          errDiv.style.display = 'block';
+          errDiv.textContent = 'JS Error: ' + e.message;
+        }
+      });
+
+      window.addEventListener('unhandledrejection', function(e) {
+        var errDiv = document.getElementById('js-error');
+        if (errDiv) {
+          errDiv.style.display = 'block';
+          errDiv.textContent = 'Promise Error: ' + e.reason;
+        }
+      });
+    </script>
   </body>
 </html>

@@ -4,6 +4,6 @@
 </script>
 
 <StatusBar />
-<div class="flex" style="margin-top: var(--status-bar-height); height: calc(100vh - var(--status-bar-height));">
+<div class="flex mt-status-bar h-[calc(100vh-var(--status-bar-height))]">
   <slot />
 </div>
