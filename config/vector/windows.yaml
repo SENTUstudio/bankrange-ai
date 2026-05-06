@@ -20,32 +20,33 @@ transforms:
       .os = "windows"
       ingest_ts = now()
       raw = to_string(.message) ?? ""
-      
+
       # 2. Parsing XML Robusto
       xml_obj, err = parse_xml(raw)
       if err == null {
           .timestamp = xml_obj.Event.System.TimeCreated."@SystemTime"
-          .hostname = xml_obj.Event.System.Computer
+          .hostname = xml_obj.Event.System.Computer."#text"
           .event_type = xml_obj.Event.System.Provider."@Name"
           .username = xml_obj.Event.System.Security."@UserID"
-          
+
           # Fixed fields are named child elements under EventData — order-independent.
           .message    = xml_obj.Event.EventData.Message."#text"
           .level      = downcase(to_string(xml_obj.Event.EventData.Level."#text") ?? "info")
           .ip_address = xml_obj.Event.EventData.IP."#text"
           .branch     = xml_obj.Event.EventData.Branch."#text"
       }
-      
+
       # Asegurar campos para Loki
-      .level = .level ?? "info"
-      .branch = .branch ?? "unknown"
-      
+      # Field access is infallible — use explicit null checks, not ?? (error coalescing)
+      if !exists(.level) || is_null(.level) { .level = "info" }
+      if !exists(.branch) || is_null(.branch) { .branch = "unknown" }
+
       # 3. Cálculo de Lag
       ts_str = to_string(.timestamp) ?? ""
       ts_obj = parse_timestamp(ts_str, "%+") ?? ingest_ts
       .pipeline_lag_ms = (to_float(ingest_ts) - to_float(ts_obj)) * 1000.0
       if .pipeline_lag_ms < 0.0 { .pipeline_lag_ms = 0.0 }
-      
+
       # 4. Cleanup
       del(.headers)
       del(.source_type)
@@ -64,6 +65,8 @@ sinks:
     type: "loki"
     inputs: ["process_windows"]
     endpoint: "http://loki:3100"
+    healthcheck:
+      enabled: false
     encoding:
       codec: "json"
     labels:
