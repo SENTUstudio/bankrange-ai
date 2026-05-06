@@ -24,7 +24,7 @@
   }
 </script>
 
-<div class="fixed bottom-4 right-4 z-30 w-72 border border-[var(--color-border)] bg-[var(--color-panel)]/95 backdrop-blur rounded p-4">
+<div class="absolute bottom-4 right-4 z-[100] w-72 border border-[var(--color-border)] bg-[var(--color-panel)]/95 backdrop-blur rounded p-4">
   <div class="flex items-center justify-between mb-3">
     <h3 class="text-[var(--color-primary)] text-xs font-bold uppercase tracking-wider">Controls</h3>
     <span class="text-[10px] text-[var(--color-muted)] font-mono">v2.4</span>
@@ -56,17 +56,6 @@
       oninput={handleSliderChange}
       class="w-full h-1 bg-[var(--color-border)] rounded-lg appearance-none cursor-pointer accent-[var(--color-primary)]"
     />
-  </div>
-
-  <div class="grid grid-cols-2 gap-2 text-xs font-mono">
-    <div class="border border-[var(--color-border)] rounded p-2">
-      <div class="text-[var(--color-muted)] text-[10px]">EST. EPS</div>
-      <div class="text-[var(--color-text)]">{engineState.estimatedEPS.toFixed(1)}</div>
-    </div>
-    <div class="border border-[var(--color-border)] rounded p-2">
-      <div class="text-[var(--color-muted)] text-[10px]">WORKSTATIONS</div>
-      <div class="text-[var(--color-text)]">{engineState.totalWorkstations}</div>
-    </div>
   </div>
 
   {#if appState.lastError}

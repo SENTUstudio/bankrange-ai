@@ -10,7 +10,7 @@
   let config = $derived(statusConfig[engineState.status] ?? { level: 'warn', text: 'UNKNOWN' });
 </script>
 
-<div class="fixed top-0 left-0 right-0 z-40 h-10 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur">
+<div class="fixed top-0 left-0 right-0 z-[100] h-12 flex items-center justify-between px-4 border-b border-[var(--color-border)] bg-[var(--color-bg)]/90 backdrop-blur">
   <div class="flex items-center gap-3">
     <span class="text-[var(--color-primary)] text-xs font-bold uppercase tracking-wider">BankRange</span>
     <AlertBadge level={config.level} text={config.text} />

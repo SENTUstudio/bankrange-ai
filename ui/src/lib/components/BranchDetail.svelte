@@ -10,7 +10,7 @@
 
 {#if isOpen && branch}
   <div
-    class="fixed top-10 right-0 bottom-0 z-30 w-96 border-l border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur transform transition-transform duration-300 ease-in-out"
+    class="absolute top-0 right-0 bottom-0 z-30 w-96 border-l border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur transform transition-transform duration-300 ease-in-out"
     class:translate-x-0={isOpen}
     class:translate-x-full={!isOpen}
   >

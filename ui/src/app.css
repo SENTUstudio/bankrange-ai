@@ -1,28 +1,66 @@
 :root {
-  /* Core background colors */
-  --color-bg: #0a0a0a;
-  --color-bg-primary: #0a0a0a;
-  --color-panel: #111111;
-  --color-bg-panel: #111111;
-  --color-border: #222222;
-  /* Alert colors (Pentagon aesthetic) */
+  /* ─── Core Palette ─── */
+  --bg-primary: #050505;
+  --bg-panel: #0c0c12;
+  --bg-panel-hover: #11111a;
+  --border-color: #1e1e2e;
+  --border-glow: #2d2d44;
+  
+  /* ─── Neon Alerts ─── */
+  --alert-red: #ff3333;
+  --alert-red-glow: rgba(255, 51, 51, 0.4);
+  --alert-orange: #ff8800;
+  --alert-orange-glow: rgba(255, 136, 0, 0.4);
+  --alert-green: #00ff88;
+  --alert-green-glow: rgba(0, 255, 136, 0.4);
+  
+  /* ─── Cyber Cyan ─── */
+  --cyan: #00ccff;
+  --cyan-glow: rgba(0, 204, 255, 0.3);
+  --cyan-dim: #006688;
+  
+  /* ─── Text ─── */
+  --text-primary: #e0e0e0;
+  --text-secondary: #8a8aaa;
+  --text-dim: #4a4a6a;
+  
+  /* ─── Legacy compatibility (from PR1) ─── */
+  --color-bg: #050505;
+  --color-bg-primary: #050505;
+  --color-panel: #0c0c12;
+  --color-bg-panel: #0c0c12;
+  --color-border: #1e1e2e;
   --color-alert: #ff3333;
   --color-alert-red: #ff3333;
   --color-warn: #ff8800;
   --color-alert-orange: #ff8800;
   --color-success: #00ff88;
   --color-alert-green: #00ff88;
-  /* Text colors */
   --color-text: #e0e0e0;
   --color-text-primary: #e0e0e0;
-  --color-muted: #888888;
-  --color-text-secondary: #888888;
-  /* Interactive */
+  --color-muted: #8a8aaa;
+  --color-text-secondary: #8a8aaa;
   --color-primary: #00ccff;
   --color-accent-cyan: #00ccff;
-  --font-mono: "JetBrains Mono", monospace;
+  
+  /* ─── Typography ─── */
+  --font-mono: "JetBrains Mono", "Consolas", "Monaco", monospace;
+  --font-header: "Inter", "Segoe UI", system-ui, sans-serif;
+  
+  /* ─── Spacing ─── */
+  --status-bar-height: 48px;
+  --sidebar-width: 280px;
+  --panel-padding: 20px;
+  --border-radius: 4px;
+  
+  /* ─── Glow Presets ─── */
+  --glow-cyan: 0 0 10px var(--cyan-glow), 0 0 20px var(--cyan-glow), 0 0 40px rgba(0, 204, 255, 0.1);
+  --glow-red: 0 0 10px var(--alert-red-glow), 0 0 20px var(--alert-red-glow);
+  --glow-green: 0 0 10px var(--alert-green-glow), 0 0 20px var(--alert-green-glow);
+  --glow-orange: 0 0 10px var(--alert-orange-glow), 0 0 20px var(--alert-orange-glow);
 }
 
+/* ─── Font Face ─── */
 @font-face {
   font-family: "JetBrains Mono";
   src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
@@ -31,21 +69,262 @@
   font-display: swap;
 }
 
-body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  overflow: hidden;
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
-* {
+/* ─── Global Reset ─── */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
-/* ─── MapLibre canvas sizing ─── */
+html {
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  min-height: 100vh;
+  /* Subtle grid pattern */
+  background-image: 
+    linear-gradient(rgba(0, 204, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 204, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* ─── CRT Scanline Overlay ─── */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+  opacity: 0.4;
+}
+
+/* ─── Status Bar ─── */
+.status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--status-bar-height);
+  background: linear-gradient(180deg, rgba(12,12,18,0.98) 0%, rgba(12,12,18,0.95) 100%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.5), 0 1px 0 var(--cyan-dim);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.status-bar .brand {
+  font-family: var(--font-header);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan-glow);
+  letter-spacing: 2px;
+}
+
+.status-bar .metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.status-bar .metric-value {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.status-bar .indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--alert-green);
+  box-shadow: var(--glow-green);
+}
+
+.status-bar .indicator.disconnected {
+  background: var(--alert-red);
+  box-shadow: var(--glow-red);
+  animation: pulse-red 1s infinite;
+}
+
+/* ─── Network Graph ─── */
+.network-graph-svg .node {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.network-graph-svg .node:hover {
+  filter: drop-shadow(0 0 8px var(--cyan-glow));
+}
+
+.network-graph-svg .node.router {
+  fill: var(--alert-red);
+  filter: drop-shadow(0 0 6px var(--alert-red-glow));
+}
+
+.network-graph-svg .node.switch {
+  fill: var(--alert-orange);
+  filter: drop-shadow(0 0 6px var(--alert-orange-glow));
+}
+
+.network-graph-svg .node.workstation {
+  fill: var(--alert-green);
+  filter: drop-shadow(0 0 6px var(--alert-green-glow));
+}
+
+.network-graph-svg .node.segment {
+  fill: var(--cyan);
+  filter: drop-shadow(0 0 6px var(--cyan-glow));
+}
+
+.network-graph-svg .link {
+  stroke: var(--border-glow);
+  stroke-width: 1.5;
+  opacity: 0.6;
+}
+
+.network-graph-svg .link.active {
+  stroke: var(--cyan-dim);
+  stroke-dasharray: 5,3;
+  animation: dashFlow 2s linear infinite;
+}
+
+/* ─── Boot Sequence ─── */
+.boot-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  font-family: var(--font-mono);
+}
+
+.boot-screen .boot-text {
+  color: var(--cyan);
+  font-size: 16px;
+  text-shadow: 0 0 10px var(--cyan-glow);
+  letter-spacing: 1px;
+}
+
+.boot-screen .boot-cursor {
+  display: inline-block;
+  width: 10px;
+  height: 18px;
+  background: var(--cyan);
+  margin-left: 4px;
+  animation: blink 1s step-end infinite;
+  box-shadow: 0 0 8px var(--cyan-glow);
+}
+
+.boot-screen .progress-bar {
+  width: 300px;
+  height: 3px;
+  background: var(--border-color);
+  margin-top: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.boot-screen .progress-bar .fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--alert-green));
+  box-shadow: 0 0 10px var(--cyan-glow);
+  transition: width 0.3s ease;
+}
+
+/* ─── Animations ─── */
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--alert-red-glow); }
+  50% { opacity: 0.6; box-shadow: 0 0 20px var(--alert-red-glow), 0 0 40px var(--alert-red-glow); }
+}
+
+@keyframes pulse-orange {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--alert-orange-glow); }
+  50% { opacity: 0.6; box-shadow: 0 0 20px var(--alert-orange-glow), 0 0 40px var(--alert-orange-glow); }
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--alert-green-glow); }
+  50% { opacity: 0.6; box-shadow: 0 0 20px var(--alert-green-glow), 0 0 40px var(--alert-green-glow); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes dashFlow {
+  to { stroke-dashoffset: -16; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-dim);
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: rgba(0, 204, 255, 0.3);
+  color: var(--text-primary);
+}
+
+/* ─── MapLibre / Deck.gl Integration ─── */
 .maplibregl-canvas {
   position: absolute;
   top: 0;
@@ -54,5 +333,13 @@ body {
   height: 100%;
 }
 
-/* ─── Map container z-index layering ─── */
+/* Map container z-index layering */
 /* Map sits at z-0; DOM overlays (controls, detail) stay above at z-30+ */
+
+/* ─── Layout Shell ─── */
+.main-content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
