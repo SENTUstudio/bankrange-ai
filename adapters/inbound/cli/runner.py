@@ -78,9 +78,9 @@ def main() -> None:
     try:
         publisher = KafkaEventPublisher(
             bootstrap_servers=args.kafka_brokers,
-            topic=args.kafka_topic,
+            topic_prefix="bankrange-raw",
         )
-        logger.info(f"Kafka Publisher initialized (Topic: {args.kafka_topic})")
+        logger.info("Kafka Publisher initialized (topic prefix: bankrange-raw-{os})")
     except Exception as e:
         logger.error(f"Failed to initialize Kafka Publisher: {e}")
         sys.exit(1)

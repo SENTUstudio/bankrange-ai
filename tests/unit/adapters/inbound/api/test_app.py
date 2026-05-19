@@ -3,7 +3,10 @@
 Tests the HTTP layer mapping to the Domain engine.
 """
 
+import contextlib
+
 import pytest
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 import adapters.inbound.api.app as app_module
@@ -256,7 +259,7 @@ class TestSseGenerator:
         """_sse_generator should yield 'running' when engine is deployed."""
         import asyncio
 
-        from adapters.inbound.api.app import _sse_generator, EngineState
+        from adapters.inbound.api.app import EngineState, _sse_generator
 
         engine = EngineState(is_running=True, deployed=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
         app_module.app.state.engine = engine
@@ -278,7 +281,7 @@ class TestSseGenerator:
         """_sse_generator should yield 'stopped' when engine is not deployed."""
         import asyncio
 
-        from adapters.inbound.api.app import _sse_generator, EngineState
+        from adapters.inbound.api.app import EngineState, _sse_generator
 
         engine = EngineState(is_running=True, deployed=False, multiplier_override=0.0, estimated_eps=0.0, total_workstations=50)
         app_module.app.state.engine = engine
@@ -300,7 +303,7 @@ class TestSseGenerator:
         """_sse_generator should yield a heartbeat every 15 iterations."""
         import asyncio
 
-        from adapters.inbound.api.app import _sse_generator, EngineState
+        from adapters.inbound.api.app import EngineState, _sse_generator
 
         engine = EngineState(is_running=True, deployed=True, multiplier_override=1.5, estimated_eps=100.0, total_workstations=50)
         app_module.app.state.engine = engine
@@ -315,13 +318,156 @@ class TestSseGenerator:
         chunks = asyncio.run(collect())
         assert any(":heartbeat" in c for c in chunks)
 
+    # ── #26: SSE disconnect handling ──
+
+    def test_sse_generator_handles_cancelled_error(self) -> None:
+        """_sse_generator must clean up when task is cancelled."""
+        import asyncio
+
+        from adapters.inbound.api.app import EngineState, _sse_generator
+
+        engine = EngineState(is_running=True, deployed=True, multiplier_override=1.0, estimated_eps=100.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        async def run_and_cancel():
+            gen = _sse_generator()
+            # Advance once to enter the try block
+            await gen.__anext__()
+            # Cancel via aclose — simulates client disconnect
+            await gen.aclose()
+
+        # Should not raise — cleaned up silently
+        asyncio.run(run_and_cancel())
+
+    def test_sse_generator_handles_generator_exit(self) -> None:
+        """_sse_generator must handle GeneratorExit (aclose) cleanly."""
+        import asyncio
+
+        from adapters.inbound.api.app import EngineState, _sse_generator
+
+        engine = EngineState(is_running=True, deployed=True, multiplier_override=1.0, estimated_eps=100.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        async def run_and_close():
+            gen = _sse_generator()
+            # Collect a few chunks then close
+            await gen.__anext__()
+            await gen.__anext__()
+            await gen.aclose()
+
+        # Should not raise
+        asyncio.run(run_and_close())
+
+    def test_sse_generator_continues_after_heartbeat(self, monkeypatch) -> None:
+        """Regression: try/except must not break normal heartbeat streaming."""
+        import asyncio
+
+        from adapters.inbound.api.app import EngineState, _sse_generator
+
+        engine = EngineState(is_running=True, deployed=True, multiplier_override=1.0, estimated_eps=100.0, total_workstations=50)
+        app_module.app.state.engine = engine
+
+        # Patch asyncio.sleep to avoid real 1s waits
+        async def fake_sleep(_seconds: float) -> None:
+            pass
+
+        monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+        async def collect(n: int) -> list[str]:
+            chunks: list[str] = []
+            gen = _sse_generator()
+            for _ in range(n):
+                chunks.append(await gen.__anext__())
+            await gen.aclose()
+            return chunks
+
+        chunks = asyncio.run(collect(30))
+        # Heartbeat should appear at least once in 30 iterations (every 15)
+        assert any(":heartbeat" in c for c in chunks), "Heartbeat missing after 30 iterations"
+        # Data chunks should still be flowing
+        data_chunks = [c for c in chunks if c.startswith("data: ")]
+        assert len(data_chunks) >= 28, f"Expected >=28 data chunks, got {len(data_chunks)}"
+
+    def test_sse_generator_has_try_except_for_disconnect(self) -> None:
+        """_sse_generator source must contain try/except for disconnect exceptions."""
+        import inspect
+
+        from adapters.inbound.api.app import _sse_generator
+
+        source = inspect.getsource(_sse_generator)
+        assert "try:" in source, "_sse_generator must have try/except for disconnect handling"
+        assert "CancelledError" in source or "GeneratorExit" in source, (
+            "_sse_generator must catch CancelledError or GeneratorExit"
+        )
+
+
+class TestHealthEndpoint:
+    """Tests for the #27 /health endpoint."""
+
+    def test_health_returns_503_when_generator_is_none(self, client) -> None:
+        """GET /health must return 503 when engine._generator is None."""
+        engine = app_module.app.state.engine
+        engine._generator = None
+
+        response = client.get("/health")
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "unavailable"
+
+    def test_health_returns_200_when_generator_initialized(self, client) -> None:
+        """GET /health must return 200 when engine._generator is set."""
+        from unittest.mock import MagicMock
+
+        engine = app_module.app.state.engine
+        mock_gen = MagicMock()
+        engine._generator = mock_gen
+
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+
+    def test_health_transitions_503_to_200(self, client) -> None:
+        """GET /health must transition from 503 → 200 when generator is injected."""
+        from unittest.mock import MagicMock
+
+        engine = app_module.app.state.engine
+        engine._generator = None
+
+        # Initially 503
+        response = client.get("/health")
+        assert response.status_code == 503
+
+        # Inject generator → 200
+        mock_gen = MagicMock()
+        engine._generator = mock_gen
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
+
+    def test_status_endpoint_unchanged(self, client) -> None:
+        """GET /status must preserve its backward-compatible behavior."""
+        engine = app_module.app.state.engine
+        engine.deployed = True
+        engine.multiplier_override = 2.0
+        engine.estimated_eps = 100.0
+        engine.total_workstations = 50
+
+        response = client.get("/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "running"
+        assert data["current_multiplier"] == 2.0
+        assert data["estimated_eps"] == 100.0
+        assert data["total_workstations"] == 50
+
 
 class TestRunEngineLoop:
     def test_run_engine_loop_missing_components_returns_early(self) -> None:
         """_run_engine_loop should return early if generator or publisher is None."""
         import asyncio
 
-        from adapters.inbound.api.app import _run_engine_loop, EngineState
+        from adapters.inbound.api.app import EngineState, _run_engine_loop
 
         state = EngineState()
         state._generator = None
@@ -336,7 +482,7 @@ class TestRunEngineLoop:
         import asyncio
         from unittest.mock import MagicMock
 
-        from adapters.inbound.api.app import _run_engine_loop, EngineState
+        from adapters.inbound.api.app import EngineState, _run_engine_loop
 
         mock_generator = MagicMock()
         mock_generator.estimated_eps.return_value = 100.0
@@ -369,7 +515,7 @@ class TestRunEngineLoop:
         import asyncio
         from unittest.mock import MagicMock
 
-        from adapters.inbound.api.app import _run_engine_loop, EngineState
+        from adapters.inbound.api.app import EngineState, _run_engine_loop
 
         mock_generator = MagicMock()
         mock_generator.estimated_eps.return_value = 100.0
@@ -402,7 +548,7 @@ class TestRunEngineLoop:
         import asyncio
         from unittest.mock import MagicMock
 
-        from adapters.inbound.api.app import _run_engine_loop, EngineState
+        from adapters.inbound.api.app import EngineState, _run_engine_loop
 
         mock_generator = MagicMock()
         mock_generator.estimated_eps.return_value = 100.0
@@ -435,7 +581,7 @@ class TestRunEngineLoop:
         import asyncio
         from unittest.mock import MagicMock
 
-        from adapters.inbound.api.app import _run_engine_loop, EngineState
+        from adapters.inbound.api.app import EngineState, _run_engine_loop
 
         mock_generator = MagicMock()
         mock_generator.estimated_eps.return_value = 100.0
@@ -454,10 +600,144 @@ class TestRunEngineLoop:
             task = asyncio.create_task(_run_engine_loop(state))
             await asyncio.sleep(0.01)
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         asyncio.run(run_and_cancel())
         assert state.is_running is False
+
+
+# ---------------------------------------------------------------------------
+# CORS Security Tests (Issue #4)
+# ---------------------------------------------------------------------------
+
+
+class TestCorsSecurity:
+    """Verify CORS middleware is configured securely."""
+
+    def test_cors_allow_credentials_is_false(self, client) -> None:
+        """allow_credentials must be False — no credentialed requests in this app."""
+        cors_middleware = None
+        for mw in app_module.app.user_middleware:
+            if hasattr(mw, "cls") and mw.cls == CORSMiddleware:
+                cors_middleware = mw
+                break
+        assert cors_middleware is not None, "CORS middleware not found"
+        assert cors_middleware.kwargs.get("allow_credentials") is False
+
+    def test_cors_preflight_returns_ok(self, client) -> None:
+        """OPTIONS preflight must succeed for allowed origin."""
+        response = client.options(
+            "/status",
+            headers={
+                "Origin": "http://localhost:8080",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Auth & Rate Limit Tests (Issue #19)
+# ---------------------------------------------------------------------------
+
+
+class TestApiKeyAuth:
+    """Verify X-API-Key auth protects POST /control only."""
+
+    @pytest.fixture(autouse=True)
+    def _set_api_key(self, monkeypatch) -> None:
+        """Set a test API key for all auth tests."""
+        monkeypatch.setenv("BR_API_KEY", "test-secret-key")
+        # Reload the env-dependent module-level constants
+        import importlib
+
+        importlib.reload(app_module)
+
+    def test_control_returns_401_without_api_key(self, client) -> None:
+        """POST /control without X-API-Key header must return 401."""
+        response = client.post(
+            "/control",
+            json={"eps_multiplier": 1.0},
+        )
+        assert response.status_code == 401
+        data = response.json()
+        assert "detail" in data
+
+    def test_control_returns_401_with_wrong_api_key(self, client) -> None:
+        """POST /control with wrong X-API-Key header must return 401."""
+        response = client.post(
+            "/control",
+            json={"eps_multiplier": 1.0},
+            headers={"X-API-Key": "wrong-key"},
+        )
+        assert response.status_code == 401
+
+    def test_control_returns_200_with_valid_api_key(self, client) -> None:
+        """POST /control with correct X-API-Key must return 200."""
+        response = client.post(
+            "/control",
+            json={"eps_multiplier": 1.0},
+            headers={"X-API-Key": "test-secret-key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Engine deployed"
+
+    def test_health_remains_public(self, client) -> None:
+        """GET /health must remain public (no API key required)."""
+        response = client.get("/health")
+        # Should be 503 (engine not initialized) or 200 — NOT 401
+        assert response.status_code in (200, 503)
+        assert response.status_code != 401
+
+    def test_status_remains_public(self, client) -> None:
+        """GET /status must remain public (no API key required)."""
+        response = client.get("/status")
+        assert response.status_code == 200
+        assert response.status_code != 401
+
+    def test_topology_endpoints_remain_public(self, client) -> None:
+        """GET /topology/branches must remain public."""
+        response = client.get("/topology/branches")
+        assert response.status_code != 401
+
+
+class TestRateLimiter:
+    """Verify rate limiting on POST /control."""
+
+    @pytest.fixture(autouse=True)
+    def _set_api_key(self, monkeypatch) -> None:
+        """Set a test API key for all rate limit tests."""
+        monkeypatch.setenv("BR_API_KEY", "test-secret-key")
+        import importlib
+
+        importlib.reload(app_module)
+
+    def test_control_allows_up_to_five_requests_per_window(self, client) -> None:
+        """First 5 requests within a 60s window must succeed."""
+        for i in range(5):
+            response = client.post(
+                "/control",
+                json={"eps_multiplier": 1.0},
+                headers={"X-API-Key": "test-secret-key"},
+            )
+            assert response.status_code == 200, f"Request {i + 1} expected 200, got {response.status_code}"
+
+    def test_control_returns_429_when_rate_limited(self, client) -> None:
+        """6th request within 60s must return 429 Too Many Requests."""
+        # Exhaust the rate limit (5 requests)
+        for _ in range(5):
+            client.post(
+                "/control",
+                json={"eps_multiplier": 1.0},
+                headers={"X-API-Key": "test-secret-key"},
+            )
+        # 6th should be blocked
+        response = client.post(
+            "/control",
+            json={"eps_multiplier": 1.0},
+            headers={"X-API-Key": "test-secret-key"},
+        )
+        assert response.status_code == 429
+        assert "Retry-After" in response.headers

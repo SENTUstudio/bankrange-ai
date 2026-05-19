@@ -11,29 +11,9 @@ This entity is part of the CORE domain — it has ZERO infrastructure
 dependencies. Serialization to JSON happens at the adapter boundary.
 """
 
-import html
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
-
-# English month abbreviations for locale-independent syslog timestamps.
-# calendar.month_abbr is NOT locale-safe (it changes with setlocale),
-# so we hardcode the RFC-3164 abbreviations.
-_SYSLOG_MONTH_ABBR = [
-    "",
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
 
 from pydantic import BaseModel, Field
 
@@ -137,61 +117,5 @@ class LogEvent(BaseModel):
         ),
     ]
 
-    def to_raw_format(self) -> str:
-        """Serialize to a chaotic string based on Operating System.
 
-        This intentional break from JSON purity forces Data Engineers
-        to build grok/regex ETL pipelines for normalization.
 
-        Includes all metadata fields to enrich the raw output.
-        """
-        # Use hardcoded English abbreviations to guarantee locale-independent syslog output.
-        ts_syslog = (
-            f"{_SYSLOG_MONTH_ABBR[self.timestamp.month]} "
-            f"{self.timestamp.day:02d} "
-            f"{self.timestamp.strftime('%H:%M:%S')}"
-        )
-        ts_iso = self.timestamp.isoformat()
-
-        # Flatten metadata to a string format suitable for each OS
-        meta_kv = " ".join([f"{k}={v}" for k, v in self.metadata.items()])
-        meta_tsv = "\t".join([str(v) for v in self.metadata.values()])
-
-        if self.os_type == OSType.LINUX:
-            # Legacy Syslog RFC 3164 format with metadata at the end
-            return (
-                f"<{134}>{ts_syslog} {self.hostname} {self.event_type.value}"
-                f"[{self.event_id.hex[:8]}]: {self.username} - {self.severity.value.upper()} "
-                f"- {self.message} (src={self.ip_address} branch={self.branch_code} {meta_kv})"
-            )
-
-        elif self.os_type == OSType.WINDOWS:
-            # Flattened XML mimicking Windows Event Log with full EventData.
-            # Fixed fields use named child elements so Vector can access them
-            # by name instead of relying on implicit array ordering.
-            def _escape(value: Any) -> str:
-                if isinstance(value, str):
-                    return html.escape(value, quote=True)
-                return str(value)
-
-            meta_xml = "".join(
-                [f'<Data Name="{k}">{_escape(v)}</Data>' for k, v in self.metadata.items()]
-            )
-            return (
-                f'<Event><System><Provider Name="{self.event_type.value}"/><TimeCreated SystemTime="{ts_iso}"/>'
-                f"<Computer>{html.escape(self.hostname, quote=True)}</Computer>"
-                f'<Security UserID="{html.escape(self.username, quote=True)}"/></System>'
-                f'<EventData><Message>{html.escape(self.message, quote=True)}</Message>'
-                f'<Level>{self.severity.value}</Level>'
-                f'<IP>{self.ip_address}</IP><Branch>{self.branch_code}</Branch>'
-                f"{meta_xml}</EventData></Event>"
-            )
-
-        elif self.os_type == OSType.MACOS:
-            # Tab-separated strings simulating rigid CSV/ASL dumps
-            # Appending metadata values as additional columns
-            base_tsv = f"{ts_iso}\t{self.hostname}\t{self.username}\t{self.os_type.value}\t{self.event_type.value}\t{self.severity.value}\t{self.message}\t{self.ip_address}\t{self.branch_code}"
-            return f"{base_tsv}\t{meta_tsv}" if meta_tsv else base_tsv
-
-        # Fallback to stringified dict if unknown
-        return str(self.model_dump())

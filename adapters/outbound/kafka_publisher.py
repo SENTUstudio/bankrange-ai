@@ -10,6 +10,7 @@ from typing import Any
 
 from confluent_kafka import KafkaException, Producer
 
+from adapters.outbound.serializers.raw_format import to_raw_format
 from core.domain.log_event import LogEvent
 from core.ports.event_publisher import EventPublisher
 
@@ -56,7 +57,7 @@ class KafkaEventPublisher(EventPublisher):
         """Publish a single event to its OS-specific topic."""
         target_topic = f"{self._topic_prefix}-{event.os_type.value}"
         try:
-            payload = event.to_raw_format().encode("utf-8")
+            payload = to_raw_format(event).encode("utf-8")
             self._producer.produce(
                 topic=target_topic,
                 key=str(event.event_id).encode("utf-8"),
@@ -80,7 +81,7 @@ class KafkaEventPublisher(EventPublisher):
     def _produce_with_retry(self, event: LogEvent) -> bool:
         """Send a single event, retrying on BufferError with exponential backoff."""
         target_topic = f"{self._topic_prefix}-{event.os_type.value}"
-        payload = event.to_raw_format().encode("utf-8")
+        payload = to_raw_format(event).encode("utf-8")
         backoff_delays = [0.1, 0.5, 1.0]
 
         for attempt in range(len(backoff_delays)):

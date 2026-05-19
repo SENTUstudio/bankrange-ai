@@ -311,5 +311,5 @@ class EventGenerator:
 
         generator = generators.get(key)
         if generator:
-            return generator()
+            return generator()  # type: ignore[no-any-return]
         return f"unknown_{key}"

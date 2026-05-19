@@ -8,15 +8,17 @@ import asyncio
 import json
 import logging
 import os
+from collections import defaultdict
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.inbound.api.topology_mapper import (
@@ -25,7 +27,6 @@ from adapters.inbound.api.topology_mapper import (
     _to_network_graph,
 )
 from adapters.outbound.kafka_publisher import KafkaEventPublisher
-from core.domain.temporal import BANK_WORKDAY_PROFILE
 from core.domain.topology_factory import TopologyFactory
 from core.factories.topology_config_factory import create_topology_config
 from core.use_cases.event_generator import EventGenerator
@@ -34,6 +35,46 @@ from core.use_cases.event_generator import EventGenerator
 load_dotenv()
 
 logger = logging.getLogger("BankRange-API")
+
+# ---------------------------------------------------------------------------
+# Auth & Rate Limiting
+# ---------------------------------------------------------------------------
+_RATE_LIMIT_MAX = 5
+_RATE_LIMIT_WINDOW_SECS = 60
+
+# {client_ip: [timestamp, ...]} — in-memory, resets on restart
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+
+def _get_api_key() -> str | None:
+    """Read API key from environment (evaluated at request time for testability)."""
+    return os.getenv("BR_API_KEY")
+
+
+def _check_api_key(x_api_key: str | None) -> None:
+    """Raise 401 if API key is missing or wrong."""
+    expected = _get_api_key()
+    if expected and x_api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Raise 429 if client exceeded 5 requests per 60s window."""
+    client_ip = request.client.host if request.client else "unknown"
+    now = datetime.now(UTC).timestamp()
+    window_start = now - _RATE_LIMIT_WINDOW_SECS
+
+    timestamps = _rate_limit_store[client_ip]
+    # Evict expired entries
+    _rate_limit_store[client_ip] = [t for t in timestamps if t > window_start]
+
+    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded",
+            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECS)},
+        )
+    _rate_limit_store[client_ip].append(now)
 
 
 # ---------------------------------------------------------------------------
@@ -110,11 +151,10 @@ async def _run_engine_loop(engine_state: EngineState) -> None:
                 loop_start = time.time()
                 sim_time = datetime.now(UTC)
 
-                # Important: we inject the dynamic scale before generating
-                base_multi = BANK_WORKDAY_PROFILE.get_multiplier(sim_time)
-                effective_multi = base_multi * engine_state.multiplier_override
-
-                generator.set_scale_multiplier(effective_multi)
+                # Pass only the user-controlled multiplier — the temporal profile
+                # is applied internally by EventGenerator.generate_tick().
+                # Applying it here too would double-count it.
+                generator.set_scale_multiplier(engine_state.multiplier_override)
 
                 # Generate and publish
                 generator.generate_tick(sim_time)
@@ -193,8 +233,8 @@ def _start_background_engine(engine_state: EngineState) -> None:
 # ---------------------------------------------------------------------------
 # FastAPI Lifespan & App
 # ---------------------------------------------------------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+@asynccontextmanager  # type: ignore[arg-type]
+async def lifespan(app: FastAPI) -> None:  # type: ignore[override, misc]
     # Startup behavior
     engine_state = EngineState()
     app.state.engine = engine_state
@@ -217,7 +257,7 @@ _allowed_origins = [origin.strip() for origin in _allowed_origins_str.split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -235,9 +275,31 @@ async def get_status() -> dict[str, Any]:
     }
 
 
+@app.get("/health")
+async def health_check() -> Any:
+    """Operational health check for Docker and orchestrators.
+
+    Returns HTTP 200 when the simulation engine is initialized and ready.
+    Returns HTTP 503 when the engine has not been started or failed to init.
+    """
+    engine = app.state.engine
+    if engine._generator is not None:
+        return {"status": "healthy"}
+    return JSONResponse(
+        status_code=503,
+        content={"status": "unavailable", "detail": "Engine not initialized"},
+    )
+
+
 @app.post("/control")
-async def control_engine(req: ControlRequest) -> dict[str, Any]:
+async def control_engine(
+    req: ControlRequest,
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+) -> dict[str, Any]:
     """Manipulate the volume of the synthetic traffic."""
+    _check_api_key(x_api_key)
+    _check_rate_limit(request)
     engine_state = app.state.engine
     if req.eps_multiplier > 0:
         engine_state.deployed = True
@@ -309,27 +371,34 @@ async def get_branch_network(branch_code: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-async def _sse_generator():
+async def _sse_generator() -> AsyncGenerator[str]:  # type: ignore[misc, arg-type]
     """Async generator yielding SSE-formatted engine state updates."""
     engine = app.state.engine
     heartbeat_counter = 0
     while True:
-        payload = {
-            "status": "running" if engine.deployed else "stopped",
-            "current_multiplier": engine.multiplier_override,
-            "estimated_eps": engine.estimated_eps,
-            "total_workstations": engine.total_workstations,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-        yield f"data: {json.dumps(payload)}\n\n"
+        try:
+            payload = {
+                "status": "running" if engine.deployed else "stopped",
+                "current_multiplier": engine.multiplier_override,
+                "estimated_eps": engine.estimated_eps,
+                "total_workstations": engine.total_workstations,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
 
-        # Heartbeat every 15 seconds to keep proxies alive
-        heartbeat_counter += 1
-        if heartbeat_counter >= 15:
-            yield ":heartbeat\n\n"
-            heartbeat_counter = 0
+            # Heartbeat every 15 seconds to keep proxies alive
+            heartbeat_counter += 1
+            if heartbeat_counter >= 15:
+                yield ":heartbeat\n\n"
+                heartbeat_counter = 0
 
-        await asyncio.sleep(1)
+            await asyncio.sleep(1)
+        except (asyncio.CancelledError, GeneratorExit):
+            logger.debug("SSE client disconnected")
+            break
+        except RuntimeError:
+            logger.debug("SSE transport closed")
+            break
 
 
 @app.get("/events/stream")

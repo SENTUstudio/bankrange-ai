@@ -54,9 +54,9 @@
     </div>
   {:else}
     <svg {width} {height} class="w-full h-full">
-      {#each edges as edge (edge.source + '-' + edge.target)}
-        {@const src = nodes.find((n) => n.id === (edge.source as any).id || n.id === edge.source)}
-        {@const tgt = nodes.find((n) => n.id === (edge.target as any).id || n.id === edge.target)}
+      {#each edges as edge (String((edge.source as any).id ?? edge.source) + '-' + String((edge.target as any).id ?? edge.target))}
+        {@const src = (edge.source as any).x !== undefined ? (edge.source as any) : nodes.find((n) => n.id === edge.source)}
+        {@const tgt = (edge.target as any).x !== undefined ? (edge.target as any) : nodes.find((n) => n.id === edge.target)}
         {#if src && tgt}
           <ConnectionLine source={src} target={tgt} />
         {/if}

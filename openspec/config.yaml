@@ -2,10 +2,10 @@
 schema: spec-driven
 
 context: |
-  Tech stack: Python (FastAPI, Streamlit), uv, Docker Compose, Kafka, Vector, Loki, Grafana.
+  Tech stack: Python (FastAPI, uv), SvelteKit + TypeScript (UI), Docker Compose, Kafka, Vector, Loki, Grafana.
   Architecture: Hexagonal Architecture, DDD, SOLID.
-  Testing: pytest (TDD estricto).
-  Style: No linters/formatters found in project root.
+  Testing: pytest (TDD estricto) + Vitest (UI unit) + Playwright (E2E).
+  Style: ruff (linter + formatter), mypy (type checker).
 
 strict_tdd: true
 
@@ -22,20 +22,29 @@ testing:
       tool: "pytest"
     e2e:
       available: false
-      tool: "-"
+      tool: "playwright"
   coverage:
-    available: false
-    command: "-"
+    available: true
+    command: "uv run pytest tests/ --cov=adapters --cov=core --cov-report=term-missing"
+    threshold: 80
   quality_tools:
     linter:
-      available: false
-      command: "-"
+      available: true
+      command: "uv run ruff check ."
+      fix_command: "uv run ruff check --fix ."
     type_checker:
-      available: false
-      command: "-"
+      available: true
+      command: "uv run mypy ."
     formatter:
-      available: false
-      command: "-"
+      available: true
+      command: "uv run ruff format ."
+  ui:
+    runner:
+      command: "cd ui && npm run test"
+      framework: "vitest"
+    e2e:
+      command: "cd ui && npm run test:e2e"
+      framework: "playwright"
 
 rules:
   proposal:

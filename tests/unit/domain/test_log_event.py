@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from adapters.outbound.serializers.raw_format import to_raw_format
 from core.domain.log_event import LogEvent
 from core.domain.value_objects import EventType, OSType, Severity
 
@@ -129,7 +130,7 @@ class TestLogEvent:
 
         # Test Windows XML-like
         windows_event = LogEvent(os_type=OSType.WINDOWS, **base_kwargs)
-        win_str = windows_event.to_raw_format()
+        win_str = to_raw_format(windows_event)
         assert "<Event><System>" in win_str
         assert "SUC001-PC-001" in win_str
         assert '<Data Name="windows_event_id">4625</Data>' in win_str
@@ -137,14 +138,14 @@ class TestLogEvent:
 
         # Test Linux Syslog-like
         linux_event = LogEvent(os_type=OSType.LINUX, **base_kwargs)
-        lin_str = linux_event.to_raw_format()
+        lin_str = to_raw_format(linux_event)
         assert "<134>Jan 15 10:30:00 SUC001-PC-001" in lin_str
         assert "WARNING - Failed login attempt" in lin_str
         assert "windows_event_id=4625 logon_type=2" in lin_str
 
         # Test macOS tabulated
         mac_event = LogEvent(os_type=OSType.MACOS, **base_kwargs)
-        mac_str = mac_event.to_raw_format()
+        mac_str = to_raw_format(mac_event)
         assert "2026-01-15T10:30:00+00:00\tSUC001-PC-001" in mac_str
         assert "\t4625\t2" in mac_str
 
@@ -171,7 +172,7 @@ class TestLogEvent:
             severity=Severity.WARNING,
             message="Failed login attempt",
         )
-        raw = event.to_raw_format()
+        raw = to_raw_format(event)
         assert "<134>Jan 15 10:30:00" in raw, f"Expected English month abbreviation, got: {raw[:50]}"
 
     def test_syslog_timestamp_ignores_locale_for_december(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -196,7 +197,7 @@ class TestLogEvent:
             severity=Severity.INFO,
             message="Year-end backup",
         )
-        raw = event.to_raw_format()
+        raw = to_raw_format(event)
         assert "<134>Dec 25 14:00:00" in raw, f"Expected English month abbreviation, got: {raw[:50]}"
 
     def test_windows_xml_uses_named_elements_for_fixed_fields(self) -> None:
@@ -216,7 +217,7 @@ class TestLogEvent:
             message="Failed login attempt",
             metadata={"session_id": "abc123"},
         )
-        raw = event.to_raw_format()
+        raw = to_raw_format(event)
         root = ET.fromstring(raw)
 
         event_data = root.find("EventData")
@@ -254,7 +255,7 @@ class TestLogEvent:
             message='<script>alert("xss")</script>',
             metadata={"reason": "A&B", "count": 5},
         )
-        raw = event.to_raw_format()
+        raw = to_raw_format(event)
 
         # Must be parseable XML
         root = ET.fromstring(raw)

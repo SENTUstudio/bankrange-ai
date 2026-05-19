@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 
 import adapters.inbound.api.app as app_module
 from adapters.inbound.api.app import EngineState
-from core.domain.entities import Branch, Employee, NetworkSegment, Workstation
+from core.domain.entities import Branch
+from core.domain.log_event import LogEvent
 from core.domain.topology_config import OSDistribution, SegmentTemplate, TopologyConfig
 from core.domain.topology_factory import TopologyFactory
-from core.domain.value_objects import IPAddress, MacAddress, OSType
 from core.ports.event_publisher import EventPublisher
 from core.use_cases.event_generator import EventGenerator
 
@@ -21,10 +21,13 @@ from core.use_cases.event_generator import EventGenerator
 class _FakePublisher(EventPublisher):
     """No-op publisher for tests."""
 
-    def publish(self, event) -> None:
+    def publish(self, event: LogEvent) -> None:
         pass
 
-    def flush(self, timeout: float = 5.0) -> None:
+    def publish_batch(self, events: list[LogEvent]) -> None:
+        pass
+
+    def flush(self, timeout_secs: float = 5.0) -> None:
         pass
 
 
@@ -160,8 +163,8 @@ class TestGetBranchNetwork:
 class TestEventStream:
     def test_returns_event_stream_content_type(self, topology_client: TestClient, monkeypatch) -> None:
         """GET /events/stream returns text/event-stream."""
+
         import adapters.inbound.api.app as app_mod
-        from fastapi.responses import StreamingResponse
 
         async def _limited_sse():
             yield "data: {}\n\n"

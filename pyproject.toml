@@ -20,6 +20,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=6.1.1",
     "ruff>=0.11.0",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 
 [tool.pytest.ini_options]
@@ -71,5 +72,22 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_return_any = false
+disable_error_code = ["call-arg", "arg-type", "operator", "attr-defined", "union-attr"]
+
+# Pydantic v2 models with default_factory fields are falsely flagged as
+# missing required args. The pydantic-mypy plugin is incompatible with
+# this mypy version, so we suppress call-arg for domain/factory modules.
+[[tool.mypy.overrides]]
+module = [
+    "core.domain.topology_factory",
+    "core.use_cases.event_generator",
+]
+disable_error_code = ["call-arg"]
 
 

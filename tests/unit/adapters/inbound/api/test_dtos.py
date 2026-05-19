@@ -7,15 +7,15 @@ import pytest
 from pydantic import ValidationError
 
 from adapters.inbound.api.dtos import (
-    CoordinatesDTO,
-    BranchSummaryDTO,
     BranchDetailDTO,
-    WorkstationDTO,
+    BranchSummaryDTO,
+    CoordinatesDTO,
     EmployeeDTO,
-    NetworkSegmentDTO,
-    GraphNodeDTO,
     GraphEdgeDTO,
+    GraphNodeDTO,
     NetworkGraphDTO,
+    NetworkSegmentDTO,
+    WorkstationDTO,
 )
 
 

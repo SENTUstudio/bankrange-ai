@@ -7,6 +7,7 @@ to manipulate engine volume iteratively.
 
 import os
 import time
+from typing import Any
 
 import httpx
 import streamlit as st
@@ -23,10 +24,11 @@ API_URL = os.getenv("BR_API_URL", "http://localhost:8000")
 
 # Ensure we can talk to the backend
 @st.cache_data(ttl=1)
-def fetch_status() -> dict | None:
+def fetch_status() -> dict[str, Any] | None:
     try:
         r = httpx.get(f"{API_URL}/status", timeout=2.0)
-        return r.json()
+        result: dict[str, Any] = r.json()
+        return result
     except Exception:
         return None
 

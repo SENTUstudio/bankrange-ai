@@ -7,6 +7,7 @@ This is a Value Object — immutable configuration that the
 TopologyFactory consumes to produce the full entity graph.
 """
 
+from ipaddress import IPv4Network
 from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
@@ -151,4 +152,27 @@ class TopologyConfig(BaseModel):
                 f"workstations_per_branch ({self.workstations_per_branch}). "
                 f"Every PC needs at least one operator."
             )
+        return self
+
+    @model_validator(mode="after")
+    def validate_no_cidr_overlap(self) -> "TopologyConfig":
+        """Segment templates must not produce overlapping CIDRs within a branch.
+
+        Checks using branch_idx=1 as a representative sample — if templates
+        overlap for one branch they overlap for all.
+        """
+        networks: list[tuple[IPv4Network, str]] = []
+        for template in self.segment_templates:
+            cidr = template.cidr_prefix.replace("{branch_idx}", "1")
+            try:
+                net = IPv4Network(cidr, strict=False)
+            except ValueError as e:
+                raise ValueError(f"Invalid CIDR in template '{template.name_prefix}': {cidr}") from e
+            for existing_net, existing_name in networks:
+                if net.overlaps(existing_net):
+                    raise ValueError(
+                        f"CIDR overlap detected: '{template.name_prefix}' ({cidr}) "
+                        f"overlaps with '{existing_name}' ({existing_net})"
+                    )
+            networks.append((net, template.name_prefix))
         return self

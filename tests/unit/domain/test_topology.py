@@ -217,3 +217,118 @@ class TestTopologyFactory:
         ]
         actual_cities = [b.city for b in branches]
         assert actual_cities == expected_cities
+
+
+    def test_linux_workstations_go_to_server_segment(self) -> None:
+        """Linux workstations must be assigned IPs from the server segment."""
+        config = TopologyConfig(
+            num_branches=1,
+            workstations_per_branch=10,
+            employees_per_branch=10,
+            os_distribution=OSDistribution(windows_pct=60, linux_pct=40, macos_pct=0),
+            segment_templates=[
+                SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.{branch_idx}.1.0/24"),
+                SegmentTemplate(name_prefix="server", vlan_id=200, cidr_prefix="10.{branch_idx}.2.0/24"),
+            ],
+            base_eps=1.0,
+        )
+        factory = TopologyFactory()
+        branches = factory.create(config)
+        branch = branches[0]
+
+        teller_cidr = branch.network_segments[0].cidr  # 10.1.1.0/24
+        server_cidr = branch.network_segments[1].cidr  # 10.1.2.0/24
+
+        for ws in branch.workstations:
+            ip = ws.ip_address.value
+            if ws.os_type == OSType.LINUX:
+                assert ip.startswith("10.1.2."), f"Linux WS {ws.hostname} got IP {ip}, expected server segment"
+            else:
+                assert ip.startswith("10.1.1."), f"Windows WS {ws.hostname} got IP {ip}, expected teller segment"
+        # Suppress unused variable warnings
+        _ = teller_cidr, server_cidr
+
+    def test_single_segment_all_workstations_go_there(self) -> None:
+        """With one segment, all workstations regardless of OS get IPs from it."""
+        config = TopologyConfig(
+            num_branches=1,
+            workstations_per_branch=5,
+            employees_per_branch=5,
+            os_distribution=OSDistribution(windows_pct=60, linux_pct=40, macos_pct=0),
+            segment_templates=[
+                SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.{branch_idx}.1.0/24"),
+            ],
+            base_eps=1.0,
+        )
+        factory = TopologyFactory()
+        branches = factory.create(config)
+        for ws in branches[0].workstations:
+            assert ws.ip_address.value.startswith("10.1.1.")
+
+    def test_no_ip_collisions_with_two_segments(self) -> None:
+        """IPs must be unique across all workstations even with multi-segment routing."""
+        config = TopologyConfig(
+            num_branches=2,
+            workstations_per_branch=20,
+            employees_per_branch=20,
+            os_distribution=OSDistribution(windows_pct=60, linux_pct=40, macos_pct=0),
+            segment_templates=[
+                SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.{branch_idx}.1.0/24"),
+                SegmentTemplate(name_prefix="server", vlan_id=200, cidr_prefix="10.{branch_idx}.2.0/24"),
+            ],
+            base_eps=1.0,
+        )
+        factory = TopologyFactory()
+        branches = factory.create(config)
+        for branch in branches:
+            ips = [ws.ip_address.value for ws in branch.workstations]
+            assert len(ips) == len(set(ips)), f"Duplicate IPs in {branch.code}"
+
+
+class TestCIDROverlapValidation:
+    """TopologyConfig must reject segment templates with overlapping CIDRs."""
+
+    def test_overlapping_cidrs_are_rejected(self) -> None:
+        """Two templates with the same CIDR prefix must raise ValueError."""
+        with pytest.raises(ValueError, match="overlap"):
+            TopologyConfig(
+                num_branches=2,
+                workstations_per_branch=5,
+                employees_per_branch=5,
+                os_distribution=OSDistribution(windows_pct=100, linux_pct=0, macos_pct=0),
+                segment_templates=[
+                    SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.{branch_idx}.1.0/24"),
+                    SegmentTemplate(name_prefix="server", vlan_id=200, cidr_prefix="10.{branch_idx}.1.0/24"),
+                ],
+                base_eps=1.0,
+            )
+
+    def test_non_overlapping_cidrs_are_accepted(self) -> None:
+        """Two templates with distinct CIDRs must be accepted."""
+        config = TopologyConfig(
+            num_branches=2,
+            workstations_per_branch=5,
+            employees_per_branch=5,
+            os_distribution=OSDistribution(windows_pct=100, linux_pct=0, macos_pct=0),
+            segment_templates=[
+                SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.{branch_idx}.1.0/24"),
+                SegmentTemplate(name_prefix="server", vlan_id=200, cidr_prefix="10.{branch_idx}.2.0/24"),
+            ],
+            base_eps=1.0,
+        )
+        assert len(config.segment_templates) == 2
+
+    def test_subnet_of_existing_cidr_is_rejected(self) -> None:
+        """/25 subnet of an existing /24 must be detected as overlap."""
+        with pytest.raises(ValueError, match="overlap"):
+            TopologyConfig(
+                num_branches=1,
+                workstations_per_branch=5,
+                employees_per_branch=5,
+                os_distribution=OSDistribution(windows_pct=100, linux_pct=0, macos_pct=0),
+                segment_templates=[
+                    SegmentTemplate(name_prefix="teller", vlan_id=100, cidr_prefix="10.1.1.0/24"),
+                    SegmentTemplate(name_prefix="server", vlan_id=200, cidr_prefix="10.1.1.0/25"),
+                ],
+                base_eps=1.0,
+            )

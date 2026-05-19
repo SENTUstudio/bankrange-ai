@@ -86,23 +86,37 @@ class TopologyFactory:
         segments: list[NetworkSegment],
         branch_idx: int,
     ) -> list[Workstation]:
-        """Create workstations with OS distribution and IP allocation."""
+        """Create workstations with OS distribution and IP allocation.
+
+        Workstations are distributed across segments by OS type:
+        - Linux → last segment (server-vlan / DMZ)
+        - Windows / macOS → first segment (teller-vlan / corporate)
+
+        If only one segment exists, all workstations go there.
+        """
         workstations: list[Workstation] = []
         os_sequence = self._build_os_sequence(config)
 
-        # Shuffle the sequence deterministically per branch to ensure
-        # even distribution even in small branches.
         import random
 
         rng = random.Random(config.num_branches + branch_idx)  # Stable seed
         rng.shuffle(os_sequence)
 
-        # Use the first segment for workstation IPs
-        primary_segment = segments[0]
+        # Segment routing: Linux → server segment, others → teller segment
+        teller_segment = segments[0]
+        server_segment = segments[-1]  # Same as teller if only one segment
+
+        # Per-segment IP offset counters
+        ip_offsets: dict[int, int] = {}
 
         for ws_idx in range(config.workstations_per_branch):
             os_type = os_sequence[ws_idx % len(os_sequence)]
-            ip = primary_segment.allocate_ip(ws_idx)
+            segment = server_segment if os_type == OSType.LINUX else teller_segment
+
+            offset = ip_offsets.get(segment.vlan_id, 0)
+            ip = segment.allocate_ip(offset)
+            ip_offsets[segment.vlan_id] = offset + 1
+
             mac = self._generate_mac(branch_idx, ws_idx)
             type_code = self._os_type_code(os_type)
 

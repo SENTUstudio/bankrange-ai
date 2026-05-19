@@ -6,8 +6,8 @@ Validates domain entity → DTO transformations.
 import pytest
 
 from adapters.inbound.api.topology_mapper import (
-    _to_branch_summary,
     _to_branch_detail,
+    _to_branch_summary,
     _to_network_graph,
 )
 from core.domain.entities import Branch, Employee, NetworkSegment, Workstation

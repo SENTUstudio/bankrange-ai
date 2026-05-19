@@ -90,7 +90,7 @@ class TestCLIRunner:
             patch(
                 "adapters.inbound.cli.runner.KafkaEventPublisher",
                 side_effect=Exception("kafka connection failed"),
-            ) as mock_pub,
+            ) as _mock_pub,
             patch("adapters.inbound.cli.runner.sys.exit", side_effect=SystemExit(1)) as mock_exit,
             patch("adapters.inbound.cli.runner.logger") as mock_logger,
         ):
