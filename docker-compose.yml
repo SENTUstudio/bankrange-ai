@@ -208,6 +208,7 @@ services:
       - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - loki
+      - prometheus
     restart: unless-stopped
 
 volumes:
