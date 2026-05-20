@@ -42,19 +42,22 @@ class TestVectorConfigs:
         assert "branch=" in source
 
     def test_linux_config_fallbacks_to_unknown_when_no_branch(self) -> None:
-        """When regex fails, branch must fallback to 'unknown', not crash."""
+        """Linux VRL must extract branch via regex with 'unknown' fallback."""
         config_path = Path("config/vector/linux.yaml")
         assert config_path.exists()
 
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        transforms = config.get("transforms", {})
-        process_linux = transforms.get("process_linux", {})
-        source = process_linux.get("source", "")
+        source = config["transforms"]["process_linux"]["source"]
 
-        assert '.branch = "unknown"' in source
-        assert "if err != null" in source
+        # Must use parse_syslog for RFC 3164
+        assert "parse_syslog" in source
+        # Must extract branch via regex with fallback
+        assert "branch" in source
+        assert '"unknown"' in source
+        # Must extract ip_address
+        assert "ip_address" in source
 
     def test_windows_config_uses_named_elements(self) -> None:
         """Windows transform must access fixed fields by name, not array index."""

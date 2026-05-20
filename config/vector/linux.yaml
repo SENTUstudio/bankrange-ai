@@ -14,29 +14,53 @@ transforms:
     type: "remap"
     inputs: ["in_raw_kafka"]
     source: |
-      # 1. Metadatos base (LO QUE GRAFANA NECESITA)
+      # 1. Metadatos base
       .os = "linux"
-      .level = "info"
       .environment = "simulation"
       .tenant_id = "blue-team"
-      
-      # 2. Captura bruta del mensaje para ver si llega algo
-      .raw_message = to_string(.message) ?? "BINARY_DATA"
-      .message = .raw_message
-      
-      # 3. Extraer branch del payload vía regex
-      branch_match, err = parse_regex(.raw_message, r'branch=([A-Z]{3}\d{3,4})')
-      if err != null {
-          .branch = "unknown"
+      ingest_ts = now()
+      raw = to_string(.message) ?? ""
+
+      # 2. Parsear syslog RFC 3164
+      # Formato: <PRI>Mon DD HH:MM:SS hostname appname[uuid]: user - level - message (src=IP branch=CODE ...)
+      parsed, err = parse_syslog(raw)
+      if err == null {
+          .hostname   = parsed.hostname
+          .event_type = parsed.appname
+          .timestamp  = parsed.timestamp
+          # El message syslog tiene formato: "USER - LEVEL - texto real (src=IP branch=CODE ...)"
+          syslog_msg  = to_string(parsed.message) ?? ""
+          .message    = syslog_msg
+
+          # Extraer username (primer token antes de " - ")
+          user_match, _ = parse_regex(syslog_msg, r'^(?P<user>\S+)\s+-\s+')
+          .username = user_match.user ?? "SYSTEM"
+
+          # Extraer level
+          level_match, _ = parse_regex(syslog_msg, r'^\S+\s+-\s+(?P<lvl>\w+)\s+-\s+')
+          .level = downcase(level_match.lvl ?? "info")
       } else {
-          .branch = branch_match.captures[0]
+          .hostname  = null
+          .username  = "SYSTEM"
+          .level     = "info"
+          .timestamp = now()
+          .message   = raw
+          .event_type = "unknown"
       }
-      
-      # 3. Intentar parsear el timestamp solo para el lag
-      # Si falla, usamos el tiempo de ahora
-      .timestamp = now()
-      
-      # Cleanup de basura de Kafka
+
+      # 3. Extraer ip_address y branch del payload (presentes en todos los eventos)
+      ip_match, _ = parse_regex(raw, r'src=(?P<ip>[\d\.]+)')
+      .ip_address = ip_match.ip ?? null
+
+      branch_match, _ = parse_regex(raw, r'branch=(?P<br>[A-Z]{3}\d{3,4})')
+      .branch = branch_match.br ?? "unknown"
+
+      # 4. Cálculo de lag
+      ts_obj = to_timestamp(.timestamp) ?? ingest_ts
+      .pipeline_lag_ms = (to_float(ingest_ts) - to_float(ts_obj)) * 1000.0
+      if .pipeline_lag_ms < 0.0 { .pipeline_lag_ms = 0.0 }
+
+      # 5. Cleanup
       del(.headers)
       del(.source_type)
       del(.topic)
