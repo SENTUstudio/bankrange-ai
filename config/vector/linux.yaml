@@ -55,7 +55,7 @@ sinks:
     inputs: ["process_linux"]
     endpoint: "http://loki:3100"
     healthcheck:
-      enabled: false
+      enabled: true
     encoding:
       codec: "json"
     labels:
