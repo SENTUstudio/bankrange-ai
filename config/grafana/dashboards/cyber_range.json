@@ -1,16 +1,28 @@
 {
   "title": "BankRange: Main SOC Console (Totals)",
   "uid": "bankrange_soc_main",
-  "tags": ["soc", "blue-team", "totals"],
+  "tags": [
+    "soc",
+    "blue-team",
+    "totals"
+  ],
   "timezone": "browser",
   "refresh": "5s",
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "panels": [
     {
       "title": "Total Logs Processed (Overall)",
       "type": "stat",
       "datasource": "Loki",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(count_over_time({environment=\"simulation\"}[$__range]))",
@@ -18,7 +30,11 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "colorMode": "value",
         "graphMode": "area"
       }
@@ -27,7 +43,12 @@
       "title": "Total Errors & Criticals",
       "type": "stat",
       "datasource": "Loki",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(count_over_time({environment=\"simulation\", level=~\"error|critical\"}[$__range]))",
@@ -35,7 +56,11 @@
         }
       ],
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "colorMode": "background",
         "graphMode": "area"
       }
@@ -44,7 +69,12 @@
       "title": "Ingested Volume (Bytes In)",
       "type": "stat",
       "datasource": "Loki",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "sum(bytes_over_time({environment=\"simulation\"}[$__range]))",
@@ -52,10 +82,16 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "decbytes" }
+        "defaults": {
+          "unit": "decbytes"
+        }
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "colorMode": "value",
         "graphMode": "area"
       }
@@ -64,7 +100,12 @@
       "title": "Log Accumulation Over Time (Totals/min)",
       "type": "timeseries",
       "datasource": "Loki",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 4 },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 4
+      },
       "targets": [
         {
           "expr": "sum(count_over_time({environment=\"simulation\"}[1m]))",
@@ -74,7 +115,9 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisPlacement": "left",
             "drawStyle": "bars",
@@ -88,7 +131,12 @@
       "title": "Events by Operating System (Total Count)",
       "type": "piechart",
       "datasource": "Loki",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 4
+      },
       "targets": [
         {
           "expr": "sum(count_over_time({environment=\"simulation\"}[$__range])) by (os)",
@@ -98,17 +146,27 @@
       ],
       "options": {
         "pieType": "donut",
-        "legend": { "displayMode": "table", "placement": "bottom" }
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
       }
     },
     {
       "title": "Pipeline Latency (Avg Lag ms)",
       "type": "gauge",
-      "datasource": "Loki",
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      },
       "targets": [
         {
-          "expr": "avg_over_time({environment=\"simulation\"} | json | unwrap pipeline_lag_ms [$__range])",
+          "datasource": "Prometheus",
+          "expr": "rate(bankrange_pipeline_lag_ms_sum[1m]) / rate(bankrange_pipeline_lag_ms_count[1m])",
+          "legendFormat": "{{ os }}",
           "refId": "G"
         }
       ],
@@ -120,9 +178,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 100 },
-              { "color": "red", "value": 500 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
             ]
           }
         }
@@ -131,19 +198,27 @@
     {
       "title": "Pipeline Latency Over Time (P95)",
       "type": "timeseries",
-      "datasource": "Loki",
-      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 22 },
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 22
+      },
       "targets": [
         {
-          "expr": "quantile_over_time(0.95, {environment=\"simulation\"} | json | unwrap pipeline_lag_ms [1m])",
-          "legendFormat": "P95 Lag",
+          "datasource": "Prometheus",
+          "expr": "rate(bankrange_pipeline_lag_ms_sum[1m]) / rate(bankrange_pipeline_lag_ms_count[1m])",
+          "legendFormat": "Avg {{ os }}",
           "refId": "H"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisPlacement": "left",
             "drawStyle": "line",
@@ -157,7 +232,12 @@
       "title": "Recent Security Alerts",
       "type": "logs",
       "datasource": "Loki",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
       "targets": [
         {
           "expr": "{environment=\"simulation\", level=~\"warning|error|critical\"}",

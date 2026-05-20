@@ -74,6 +74,17 @@ transforms:
       del(.source_type)
       del(.topic)
 
+  lag_to_metric_linux:
+    type: "log_to_metric"
+    inputs: ["process_linux"]
+    metrics:
+      - type: "histogram"
+        field: "pipeline_lag_ms"
+        name: "pipeline_lag_ms"
+        namespace: "bankrange"
+        tags:
+          os: "linux"
+
 sinks:
   out_clean_kafka:
     type: "kafka"
@@ -97,3 +108,9 @@ sinks:
       environment: "{{ environment }}"
       branch: "{{ branch }}"
     out_of_order_action: "accept"
+
+  out_prometheus:
+    type: "prometheus_exporter"
+    inputs: ["lag_to_metric_linux"]
+    address: "0.0.0.0:9599"
+    default_namespace: "bankrange"

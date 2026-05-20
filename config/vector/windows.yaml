@@ -57,6 +57,17 @@ transforms:
       del(.source_type)
       del(.topic)
 
+  lag_to_metric_windows:
+    type: "log_to_metric"
+    inputs: ["process_windows"]
+    metrics:
+      - type: "histogram"
+        field: "pipeline_lag_ms"
+        name: "pipeline_lag_ms"
+        namespace: "bankrange"
+        tags:
+          os: "windows"
+
 sinks:
   out_clean_kafka:
     type: "kafka"
@@ -80,3 +91,9 @@ sinks:
       environment: "{{ environment }}"
       branch: "{{ branch }}"
     out_of_order_action: "accept"
+
+  out_prometheus:
+    type: "prometheus_exporter"
+    inputs: ["lag_to_metric_windows"]
+    address: "0.0.0.0:9598"
+    default_namespace: "bankrange"
