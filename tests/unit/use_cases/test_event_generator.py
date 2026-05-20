@@ -230,18 +230,7 @@ class TestEventGenerator:
         assert sum(counts) > 0  # Should generate some events
 
     def test_get_username_is_deterministic(self) -> None:
-        """Username must be deterministically derived from hostname."""
-        from core.domain.entities import Workstation
-        from core.domain.value_objects import IPAddress, MacAddress, OSType
-
-        ws = Workstation(
-            hostname="SUC001-PC-001",
-            os_type=OSType.WINDOWS,
-            ip_address=IPAddress(value="10.1.1.10"),
-            mac_address=MacAddress(value="AA:BB:CC:DD:EE:01"),
-            eps=2.0,
-        )
-
+        """Username uses employee name when on shift, SYSTEM otherwise."""
         config = TopologyConfig(
             num_branches=1,
             workstations_per_branch=1,
@@ -256,9 +245,18 @@ class TestEventGenerator:
         branches = factory.create(config)
         publisher = InMemoryEventPublisher()
         generator = EventGenerator(branches=branches, publisher=publisher)
+        ws = branches[0].workstations[0]
+        emp = branches[0].employees[0]
 
-        username = generator._get_username(ws)
-        assert username == "user_suc001_pc_001"
+        # During shift → employee username (format: "f.lastname")
+        username_on = generator._get_username(ws, emp.shift_start)
+        assert username_on != "SYSTEM"
+        assert "." in username_on
+
+        # Outside shift → SYSTEM (only for non-wrapping shifts)
+        if emp.shift_start < emp.shift_end:
+            off_hour = (emp.shift_end + 2) % 24
+            assert generator._get_username(ws, off_hour) == "SYSTEM"
 
     def test_generate_metadata_returns_dict(self) -> None:
         """_generate_metadata must return a dict with expected keys."""
