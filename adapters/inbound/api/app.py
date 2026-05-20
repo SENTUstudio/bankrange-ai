@@ -8,7 +8,6 @@ import asyncio
 import json
 import logging
 import os
-from collections import defaultdict
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -16,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,14 +36,8 @@ load_dotenv()
 logger = logging.getLogger("BankRange-API")
 
 # ---------------------------------------------------------------------------
-# Auth & Rate Limiting
+# Auth
 # ---------------------------------------------------------------------------
-_RATE_LIMIT_MAX = 5
-_RATE_LIMIT_WINDOW_SECS = 60
-
-# {client_ip: [timestamp, ...]} — in-memory, resets on restart
-_rate_limit_store: dict[str, list[float]] = defaultdict(list)
-
 
 def _get_api_key() -> str | None:
     """Read API key from environment (evaluated at request time for testability)."""
@@ -57,24 +50,6 @@ def _check_api_key(x_api_key: str | None) -> None:
     if expected and x_api_key != expected:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
-
-def _check_rate_limit(request: Request) -> None:
-    """Raise 429 if client exceeded 5 requests per 60s window."""
-    client_ip = request.client.host if request.client else "unknown"
-    now = datetime.now(UTC).timestamp()
-    window_start = now - _RATE_LIMIT_WINDOW_SECS
-
-    timestamps = _rate_limit_store[client_ip]
-    # Evict expired entries
-    _rate_limit_store[client_ip] = [t for t in timestamps if t > window_start]
-
-    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_MAX:
-        raise HTTPException(
-            status_code=429,
-            detail="Rate limit exceeded",
-            headers={"Retry-After": str(_RATE_LIMIT_WINDOW_SECS)},
-        )
-    _rate_limit_store[client_ip].append(now)
 
 
 # ---------------------------------------------------------------------------
@@ -294,12 +269,10 @@ async def health_check() -> Any:
 @app.post("/control")
 async def control_engine(
     req: ControlRequest,
-    request: Request,
     x_api_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     """Manipulate the volume of the synthetic traffic."""
     _check_api_key(x_api_key)
-    _check_rate_limit(request)
     engine_state = app.state.engine
     if req.eps_multiplier > 0:
         engine_state.deployed = True

@@ -704,40 +704,20 @@ class TestApiKeyAuth:
 
 
 class TestRateLimiter:
-    """Verify rate limiting on POST /control."""
+    """Rate limiting is enforced by nginx (limit_req_zone), not by the API.
 
-    @pytest.fixture(autouse=True)
-    def _set_api_key(self, monkeypatch) -> None:
-        """Set a test API key for all rate limit tests."""
+    The API layer does not implement rate limiting — POST /control accepts
+    unlimited requests when called directly. nginx applies 5 req/min per IP
+    via limit_req_zone in config/nginx/nginx.conf.
+    """
+
+    def test_control_has_no_rate_limit_at_api_layer(self, client, monkeypatch) -> None:
+        """POST /control must not return 429 regardless of request count."""
         monkeypatch.setenv("BR_API_KEY", "test-secret-key")
-        import importlib
-
-        importlib.reload(app_module)
-
-    def test_control_allows_up_to_five_requests_per_window(self, client) -> None:
-        """First 5 requests within a 60s window must succeed."""
-        for i in range(5):
+        for i in range(10):
             response = client.post(
                 "/control",
                 json={"eps_multiplier": 1.0},
                 headers={"X-API-Key": "test-secret-key"},
             )
-            assert response.status_code == 200, f"Request {i + 1} expected 200, got {response.status_code}"
-
-    def test_control_returns_429_when_rate_limited(self, client) -> None:
-        """6th request within 60s must return 429 Too Many Requests."""
-        # Exhaust the rate limit (5 requests)
-        for _ in range(5):
-            client.post(
-                "/control",
-                json={"eps_multiplier": 1.0},
-                headers={"X-API-Key": "test-secret-key"},
-            )
-        # 6th should be blocked
-        response = client.post(
-            "/control",
-            json={"eps_multiplier": 1.0},
-            headers={"X-API-Key": "test-secret-key"},
-        )
-        assert response.status_code == 429
-        assert "Retry-After" in response.headers
+            assert response.status_code == 200, f"Request {i + 1} got {response.status_code}"
