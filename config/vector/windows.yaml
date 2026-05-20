@@ -24,20 +24,25 @@ transforms:
       # 2. Parsing XML Robusto
       xml_obj, err = parse_xml(raw)
       if err == null {
-          .timestamp = xml_obj.Event.System.TimeCreated."@SystemTime"
-          .hostname = xml_obj.Event.System.Computer."#text"
+          .timestamp  = xml_obj.Event.System.TimeCreated."@SystemTime"
           .event_type = xml_obj.Event.System.Provider."@Name"
-          .username = xml_obj.Event.System.Security."@UserID"
+          .username   = xml_obj.Event.System.Security."@UserID"
 
-          # Fixed fields are named child elements under EventData — order-independent.
-          .message    = xml_obj.Event.EventData.Message."#text"
-          .level      = downcase(to_string(xml_obj.Event.EventData.Level."#text") ?? "info")
-          .ip_address = xml_obj.Event.EventData.IP."#text"
-          .branch     = xml_obj.Event.EventData.Branch."#text"
+          # parse_xml returns a plain string for text-only elements, not {"#text": "..."}
+          # Use to_string() first, fall back to ."#text" for mixed-content nodes.
+          .hostname   = to_string(xml_obj.Event.System.Computer) ??
+                        to_string(xml_obj.Event.System.Computer."#text") ?? null
+          .message    = to_string(xml_obj.Event.EventData.Message) ??
+                        to_string(xml_obj.Event.EventData.Message."#text") ?? null
+          .level      = downcase(to_string(xml_obj.Event.EventData.Level) ??
+                        to_string(xml_obj.Event.EventData.Level."#text") ?? "info")
+          .ip_address = to_string(xml_obj.Event.EventData.IP) ??
+                        to_string(xml_obj.Event.EventData.IP."#text") ?? null
+          .branch     = to_string(xml_obj.Event.EventData.Branch) ??
+                        to_string(xml_obj.Event.EventData.Branch."#text") ?? "unknown"
       }
 
       # Asegurar campos para Loki
-      # Field access is infallible — use explicit null checks, not ?? (error coalescing)
       if !exists(.level) || is_null(.level) { .level = "info" }
       if !exists(.branch) || is_null(.branch) { .branch = "unknown" }
 

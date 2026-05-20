@@ -35,9 +35,10 @@ transforms:
       }
       
       # Normalización segura
-      .level = downcase(to_string(.Level) ?? "info")
-      .branch = to_string(.Branch) ?? "unknown"
-      
+      .level      = downcase(to_string(.Level) ?? "info")
+      .branch     = to_string(.Branch) ?? "unknown"
+      .ip_address = to_string(.IP) ?? null
+
       # Cálculo de Lag
       ts_str = to_string(.timestamp) ?? ""
       ts_obj = parse_timestamp(ts_str, "%+") ?? ingest_ts
