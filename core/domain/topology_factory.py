@@ -137,7 +137,13 @@ class TopologyFactory:
         workstations: list[Workstation],
         branch_idx: int,
     ) -> list[Employee]:
-        """Create employees and assign them to workstations."""
+        """Create employees and assign them to workstations.
+
+        Employees are assigned shifts that reflect real bank operations:
+        - Day shift (08-18): most employees
+        - Evening shift (14-22): some tellers
+        - Night shift (22-06): IT/security only
+        """
         employees: list[Employee] = []
         departments = [
             "operations",
@@ -147,18 +153,38 @@ class TopologyFactory:
             "it_support",
             "management",
         ]
+        # Shift patterns: (start, end) — covers most bank roles
+        shifts = [
+            (8, 18),   # Day — majority
+            (8, 18),
+            (8, 18),
+            (14, 22),  # Evening
+            (22, 6),   # Night — IT/security (crosses midnight: handled by is_on_shift)
+        ]
+        first_names = [
+            "María", "Carlos", "Laura", "Diego", "Ana", "Martín",
+            "Sofía", "Pablo", "Valentina", "Rodrigo", "Lucía", "Facundo",
+        ]
+        last_names = [
+            "González", "Rodríguez", "López", "Martínez", "García",
+            "Fernández", "Pérez", "Sánchez", "Romero", "Torres",
+        ]
+
+        import random
+        rng = random.Random(branch_idx * 31337)
 
         for emp_idx in range(config.employees_per_branch):
-            # Assign to workstation if available (round-robin)
-            ws_id = None
-            if emp_idx < len(workstations):
-                ws_id = workstations[emp_idx].id
+            ws_id = workstations[emp_idx].id if emp_idx < len(workstations) else None
+            shift_start, shift_end = shifts[emp_idx % len(shifts)]
+            full_name = f"{rng.choice(first_names)} {rng.choice(last_names)}"
 
             employee = Employee(
                 employee_code=f"EM{branch_idx * 10000 + emp_idx + 1:06d}",
-                full_name=f"Employee {branch_idx + 1:03d}-{emp_idx + 1:04d}",
+                full_name=full_name,
                 department=departments[emp_idx % len(departments)],
                 workstation_id=ws_id,
+                shift_start=shift_start,
+                shift_end=shift_end,
             )
             employees.append(employee)
 

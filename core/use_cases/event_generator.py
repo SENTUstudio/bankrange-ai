@@ -22,7 +22,7 @@ It does NOT know about Kafka, files, or any infrastructure.
 import random
 from datetime import UTC, datetime
 
-from core.domain.entities import Branch, Workstation
+from core.domain.entities import Branch, Employee, Workstation
 from core.domain.event_templates import EventTemplate, pick_template
 from core.domain.log_event import LogEvent
 from core.domain.temporal import BANK_WORKDAY_PROFILE, TemporalProfile
@@ -71,6 +71,13 @@ class EventGenerator:
         for branch in branches:
             for ws in branch.workstations:
                 self._workstation_registry.append((ws, branch.code))
+
+        # Map workstation_id → Employee for username resolution
+        self._employee_map: dict[str, Employee] = {}
+        for branch in branches:
+            for emp in branch.employees:
+                if emp.workstation_id is not None:
+                    self._employee_map[str(emp.workstation_id)] = emp
 
     @property
     def branches(self) -> list[Branch]:
@@ -154,20 +161,17 @@ class EventGenerator:
         timestamp: datetime,
     ) -> LogEvent:
         """Create a LogEvent from a workstation and template."""
-        # Generate realistic metadata values
+        hour = timestamp.hour
+        username = self._get_username(ws, hour)
         metadata = self._generate_metadata(template)
-
-        # Resolve message template placeholders
-        message = template.message_template.format_map(
-            {**metadata, "username": self._get_username(ws)}
-        )
+        message = template.message_template.format_map({**metadata, "username": username})
 
         return LogEvent(
             timestamp=timestamp,
             hostname=ws.hostname,
             ip_address=ws.ip_address.value,
             os_type=ws.os_type,
-            username=self._get_username(ws),
+            username=username,
             branch_code=branch_code,
             event_type=template.event_type,
             severity=template.severity,
@@ -195,14 +199,18 @@ class EventGenerator:
                 break
         return count - 1
 
-    def _get_username(self, ws: Workstation) -> str:
+    def _get_username(self, ws: Workstation, hour: int = 9) -> str:
         """Get the username for a workstation's events.
 
-        For now, uses a deterministic mapping. In Phase 2,
-        this will come from the Employee entity.
+        Returns the assigned employee's username if they are on shift,
+        otherwise 'SYSTEM' (batch jobs, security scans, etc.).
         """
-        # Simple deterministic username from hostname
-        return f"user_{ws.hostname.lower().replace('-', '_')}"
+        emp = self._employee_map.get(str(ws.id))
+        if emp is not None and emp.is_on_shift(hour):
+            # Derive a login-style username from full name: "Maria González" → "m.gonzalez"
+            parts = emp.full_name.lower().split()
+            return f"{parts[0][0]}.{parts[-1]}" if len(parts) >= 2 else parts[0]
+        return "SYSTEM"
 
     def _generate_metadata(self, template: EventTemplate) -> dict:
         """Generate realistic metadata values for an event template."""

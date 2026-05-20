@@ -198,6 +198,28 @@ class Employee(BaseModel):
             description="Currently assigned workstation (None if unassigned)",
         ),
     ]
+    shift_start: Annotated[
+        int,
+        Field(
+            default=8,
+            ge=0,
+            le=23,
+            description="Shift start hour (0-23, inclusive)",
+        ),
+    ]
+    shift_end: Annotated[
+        int,
+        Field(
+            default=18,
+            ge=1,
+            le=24,
+            description="Shift end hour (1-24, exclusive). 24 means midnight.",
+        ),
+    ]
+
+    def is_on_shift(self, hour: int) -> bool:
+        """Return True if the employee is on shift at the given hour."""
+        return self.shift_start <= hour < self.shift_end
 
 
 class Branch(BaseModel):
