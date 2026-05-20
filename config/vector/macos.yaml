@@ -53,6 +53,17 @@ transforms:
       del(.Branch)
       del(.IP)
 
+  lag_to_metric_macos:
+    type: "log_to_metric"
+    inputs: ["process_macos"]
+    metrics:
+      - type: "histogram"
+        field: "pipeline_lag_ms"
+        name: "pipeline_lag_ms"
+        namespace: "bankrange"
+        tags:
+          os: "macos"
+
 sinks:
   out_clean_kafka:
     type: "kafka"
@@ -76,3 +87,9 @@ sinks:
       environment: "{{ environment }}"
       branch: "{{ branch }}"
     out_of_order_action: "accept"
+
+  out_prometheus:
+    type: "prometheus_exporter"
+    inputs: ["lag_to_metric_macos"]
+    address: "0.0.0.0:9600"
+    default_namespace: "bankrange"

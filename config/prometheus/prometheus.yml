@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "vector-windows"
+    static_configs:
+      - targets: ["vector-windows:9598"]
+        labels:
+          os: "windows"
+
+  - job_name: "vector-linux"
+    static_configs:
+      - targets: ["vector-linux:9599"]
+        labels:
+          os: "linux"
+
+  - job_name: "vector-macos"
+    static_configs:
+      - targets: ["vector-macos:9600"]
+        labels:
+          os: "macos"
