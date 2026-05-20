@@ -82,6 +82,8 @@ services:
       - BR_LINUX_PCT=30
       - BR_MACOS_PCT=10
       - BR_BASE_EPS=2.0
+      - BR_API_KEY=${BR_API_KEY:-change-me-in-production}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8080}
     depends_on:
       kafka:
         condition: service_healthy
