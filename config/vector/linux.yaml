@@ -22,42 +22,51 @@ transforms:
       raw = to_string(.message) ?? ""
 
       # 2. Parsear syslog RFC 3164
-      # Formato: <PRI>Mon DD HH:MM:SS hostname appname[uuid]: user - level - message (src=IP branch=CODE ...)
       parsed, err = parse_syslog(raw)
       if err == null {
           .hostname   = parsed.hostname
           .event_type = parsed.appname
           .timestamp  = parsed.timestamp
-          # El message syslog tiene formato: "USER - LEVEL - texto real (src=IP branch=CODE ...)"
-          syslog_msg  = to_string(parsed.message) ?? ""
+          syslog_msg  = to_string(parsed.message)
           .message    = syslog_msg
 
-          # Extraer username (primer token antes de " - ")
-          user_match, _ = parse_regex(syslog_msg, r'^(?P<user>\S+)\s+-\s+')
-          .username = user_match.user ?? "SYSTEM"
+          # Extraer username: primer token antes de " - "
+          .username = "SYSTEM"
+          user_match, user_err = parse_regex(syslog_msg, r'^(?P<user>\S+)\s+-\s+')
+          if user_err == null {
+              .username = to_string(user_match.user)
+          }
 
-          # Extraer level
-          level_match, _ = parse_regex(syslog_msg, r'^\S+\s+-\s+(?P<lvl>\w+)\s+-\s+')
-          .level = downcase(level_match.lvl ?? "info")
+          # Extraer level: segundo token
+          .level = "info"
+          lvl_match, lvl_err = parse_regex(syslog_msg, r'^\S+\s+-\s+(?P<lvl>\w+)\s+-\s+')
+          if lvl_err == null {
+              .level = downcase(to_string(lvl_match.lvl))
+          }
       } else {
-          .hostname  = null
-          .username  = "SYSTEM"
-          .level     = "info"
-          .timestamp = now()
-          .message   = raw
+          .hostname   = null
+          .username   = "SYSTEM"
+          .level      = "info"
+          .timestamp  = now()
+          .message    = raw
           .event_type = "unknown"
       }
 
-      # 3. Extraer ip_address y branch del payload (presentes en todos los eventos)
-      ip_match, _ = parse_regex(raw, r'src=(?P<ip>[\d\.]+)')
-      .ip_address = ip_match.ip ?? null
+      # 3. Extraer ip_address y branch del payload
+      .ip_address = null
+      ip_match, ip_err = parse_regex(raw, r'src=(?P<ip>[\d\.]+)')
+      if ip_err == null {
+          .ip_address = to_string(ip_match.ip)
+      }
 
-      branch_match, _ = parse_regex(raw, r'branch=(?P<br>[A-Z]{3}\d{3,4})')
-      .branch = branch_match.br ?? "unknown"
+      .branch = "unknown"
+      br_match, br_err = parse_regex(raw, r'branch=(?P<br>[A-Z]{3}\d{3,4})')
+      if br_err == null {
+          .branch = to_string(br_match.br)
+      }
 
-      # 4. Cálculo de lag
-      ts_obj = to_timestamp(.timestamp) ?? ingest_ts
-      .pipeline_lag_ms = (to_float(ingest_ts) - to_float(ts_obj)) * 1000.0
+      # 4. Cálculo de lag (timestamp ya es tipo timestamp desde parse_syslog)
+      .pipeline_lag_ms = (to_float(ingest_ts) - to_float(.timestamp)) * 1000.0
       if .pipeline_lag_ms < 0.0 { .pipeline_lag_ms = 0.0 }
 
       # 5. Cleanup
