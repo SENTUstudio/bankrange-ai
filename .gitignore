@@ -37,3 +37,7 @@ openspec/changes/*/state.yaml
 node_modules/
 package.json
 package-lock.json
+
+# Local tooling caches
+.pi/
+.pi-lens/
